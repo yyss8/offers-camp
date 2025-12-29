@@ -41,7 +41,7 @@ app.use((req, _res, next) => {
   next();
 });
 
-app.get("/api/health", (_req, res) => {
+app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
@@ -78,18 +78,18 @@ async function requireAuth(req, res, next) {
   }
 }
 
-app.get("/api/auth/me", (req, res) => {
+app.get("/auth/me", (req, res) => {
   if (!req.session?.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   res.json({ user: req.session.user });
 });
 
-app.get("/api/auth/verify", requireAuth, (req, res) => {
+app.get("/auth/verify", requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
-app.post("/api/auth/register", async (req, res, next) => {
+app.post("/auth/register", async (req, res, next) => {
   try {
     const username = String(req.body?.username || "").trim();
     const email = String(req.body?.email || "").trim();
@@ -113,7 +113,7 @@ app.post("/api/auth/register", async (req, res, next) => {
   }
 });
 
-app.post("/api/auth/login", async (req, res, next) => {
+app.post("/auth/login", async (req, res, next) => {
   try {
     const username = String(req.body?.username || "").trim();
     const password = String(req.body?.password || "");
@@ -135,7 +135,7 @@ app.post("/api/auth/login", async (req, res, next) => {
   }
 });
 
-app.post("/api/auth/logout", (req, res) => {
+app.post("/auth/logout", (req, res) => {
   if (!req.session) {
     return res.json({ ok: true });
   }
@@ -148,7 +148,7 @@ app.post("/api/auth/logout", (req, res) => {
   });
 });
 
-app.post("/api/auth/token", async (req, res, next) => {
+app.post("/auth/token", async (req, res, next) => {
   try {
     if (!req.session?.user) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -161,7 +161,7 @@ app.post("/api/auth/token", async (req, res, next) => {
   }
 });
 
-app.get("/api/cards", requireAuth, async (req, res, next) => {
+app.get("/cards", requireAuth, async (req, res, next) => {
   try {
     const cards = await req.offerRepo.listCards(req.user.id);
     res.json({ cards });
@@ -170,7 +170,7 @@ app.get("/api/cards", requireAuth, async (req, res, next) => {
   }
 });
 
-app.get("/api/offers", requireAuth, async (req, res, next) => {
+app.get("/offers", requireAuth, async (req, res, next) => {
   try {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 100, 1), 200);
@@ -204,7 +204,7 @@ app.get("/api/offers", requireAuth, async (req, res, next) => {
   }
 });
 
-app.post("/api/offers", requireAuth, async (req, res, next) => {
+app.post("/offers", requireAuth, async (req, res, next) => {
   try {
     const offers = Array.isArray(req.body?.offers) ? req.body.offers : [];
     if (!offers.length) {

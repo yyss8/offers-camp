@@ -7,7 +7,7 @@ Production domain: `offers.camp` (local dev stays on `localhost`).
 
 Include:
 - `frontend/src/`
-- `frontend/public/` (must include `offers-camp.js` and `offers-camp.css`)
+- `frontend/public/` (must include `offers-core.js`, `offers-auth.js`, `offers-utils.js`, `offers-config.js`, `offers-camp.css`, and `providers/*`)
 - `frontend/index.html`
 - `frontend/vite.config.js`
 - `frontend/package.json`
@@ -19,5 +19,8 @@ Exclude:
 
 ## Notes
 
-- `frontend/public/offers-camp.js` is the Tampermonkey runtime entry and must be committed.
+- `frontend/public/offers-core.js` is the Tampermonkey runtime core.
+- `frontend/public/offers-auth.js` handles login/token flow.
+- `frontend/public/offers-utils.js` contains shared helpers.
+- `frontend/public/offers-config.js` controls environment endpoints.
 - `frontend/public/offers-camp.css` is loaded by the shell userscript.

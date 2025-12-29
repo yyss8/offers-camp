@@ -2,10 +2,13 @@
   const OffersCamp = window.OffersCamp = window.OffersCamp || {};
   const auth = OffersCamp.auth;
 
-  const API_ENDPOINT = "http://localhost:4000/api/offers";
+  const config = window.OffersCampConfig || {};
+  const appBase = config.appBase || "http://localhost:5173";
+  const apiBase = config.apiBase || "http://localhost:4000";
+  const API_ENDPOINT = `${apiBase}/offers`;
   const SEND_DEBOUNCE_MS = 1500;
-  const LOGIN_URL = `http://localhost:5173/?tm=1&tmOrigin=${encodeURIComponent(window.location.origin)}`;
-  const VERIFY_URL = "http://localhost:4000/api/auth/verify";
+  const LOGIN_URL = `${appBase}/?tm=1&tmOrigin=${encodeURIComponent(window.location.origin)}`;
+  const VERIFY_URL = `${apiBase}/auth/verify`;
 
   const state = {
     activeProvider: null,

@@ -1,7 +1,7 @@
-CREATE DATABASE IF NOT EXISTS cc_checker
+CREATE DATABASE IF NOT EXISTS offers_camp
   CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-USE cc_checker;
+  COLLATE utf8mb4_0900_ai_ci;
+USE offers_camp;
 
 CREATE TABLE IF NOT EXISTS offers (
   id VARCHAR(64) NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS offers (
   KEY offers_user_id_idx (user_id)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
-  COLLATE=utf8mb4_unicode_ci;
+  COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -34,4 +34,4 @@ CREATE TABLE IF NOT EXISTS users (
   UNIQUE KEY users_email_unique (email)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
-  COLLATE=utf8mb4_unicode_ci;
+  COLLATE=utf8mb4_0900_ai_ci;

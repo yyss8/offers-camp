@@ -50,7 +50,7 @@ export default function App() {
       setAuthLoading(true);
       setAuthError("");
       try {
-        const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
+        const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
         if (!res.ok) {
           if (res.status === 401) {
             if (active) setUser(null);
@@ -122,7 +122,7 @@ export default function App() {
         if (cardFilter !== "all") {
           params.set("card", cardFilter);
         }
-        const res = await fetch(`${API_BASE}/api/offers?${params.toString()}`, {
+        const res = await fetch(`${API_BASE}/offers?${params.toString()}`, {
           credentials: "include"
         });
         if (!res.ok) {
@@ -162,7 +162,7 @@ export default function App() {
         return;
       }
       try {
-        const res = await fetch(`${API_BASE}/api/cards`, { credentials: "include" });
+        const res = await fetch(`${API_BASE}/cards`, { credentials: "include" });
         if (!res.ok) {
           if (res.status === 401) {
             if (active) setUser(null);
@@ -249,7 +249,7 @@ export default function App() {
     setLoggingIn(true);
     setAuthError("");
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
+      const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -273,7 +273,7 @@ export default function App() {
 
   async function handleLogout() {
     try {
-      await fetch(`${API_BASE}/api/auth/logout`, {
+      await fetch(`${API_BASE}/auth/logout`, {
         method: "POST",
         credentials: "include"
       });
@@ -285,7 +285,7 @@ export default function App() {
   }
 
   async function fetchToken() {
-    const res = await fetch(`${API_BASE}/api/auth/token`, {
+    const res = await fetch(`${API_BASE}/auth/token`, {
       method: "POST",
       credentials: "include"
     });

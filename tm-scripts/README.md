@@ -10,7 +10,11 @@ Include:
 ## Shell Script
 
 The shell should stay stable and minimal. It loads:
-- `http://localhost:5173/offers-camp.js`
+- `http://localhost:5173/offers-config.js`
+- `http://localhost:5173/offers-utils.js`
+- `http://localhost:5173/offers-auth.js`
+- `http://localhost:5173/providers/amex.js`
+- `http://localhost:5173/offers-core.js`
 - `http://localhost:5173/offers-camp.css`
 
 ## Notes
@@ -18,3 +22,7 @@ The shell should stay stable and minimal. It loads:
 - This is part of the monorepo (`backend/`, `frontend/`, `tm-scripts/`).
 - The shell is the portable entry point for new machines.
 - Production domain: `offers.camp` (local dev stays on `localhost`).
+
+## Prod Shell
+
+- `tm-scripts/tampermonkey.prod.js` targets `tm.offers.camp`.

@@ -4,7 +4,7 @@ This is the API layer for the offers collector.
 
 ## To create new user:
 ```curl
-curl -X POST http://localhost:4000/api/auth/register \
+curl -X POST http://localhost:4000/auth/register \
      -H "Content-Type: application/json" \
      -d '{
        "username": "example",
