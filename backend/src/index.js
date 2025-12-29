@@ -1,0 +1,183 @@
+import "dotenv/config";
+import express from "express";
+import cors from "cors";
+import { getPool } from "./db.js";
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: "1mb" }));
+
+let pool;
+app.use(async (req, res, next) => {
+  try {
+    if (!pool) {
+      pool = await getPool();
+    }
+    req.db = pool;
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true });
+});
+
+app.get("/api/cards", async (req, res, next) => {
+  try {
+    const [rows] = await req.db.query(
+      "SELECT DISTINCT card_last5 FROM offers WHERE card_last5 IS NOT NULL AND card_last5 <> '' ORDER BY card_last5"
+    );
+    res.json({ cards: rows.map(row => row.card_last5) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get("/api/offers", async (req, res, next) => {
+  try {
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 100, 1), 200);
+    const offset = (page - 1) * limit;
+    const query = String(req.query.q || "").trim();
+    const card = String(req.query.card || "").trim();
+
+    const whereQuery = [];
+    const paramsQuery = [];
+    if (query) {
+      whereQuery.push("(title LIKE ? OR summary LIKE ?)");
+      paramsQuery.push(`%${query}%`, `%${query}%`);
+    }
+
+    const whereIds = [...whereQuery];
+    const paramsIds = [...paramsQuery];
+    if (card && card !== "all") {
+      whereIds.push("card_last5 = ?");
+      paramsIds.push(card);
+    }
+    const whereIdsSql = whereIds.length ? `WHERE ${whereIds.join(" AND ")}` : "";
+    const whereQuerySql = whereQuery.length ? `WHERE ${whereQuery.join(" AND ")}` : "";
+
+    const [[countRow]] = await req.db.query(
+      `SELECT COUNT(DISTINCT id) AS total FROM offers ${whereIdsSql}`,
+      paramsIds
+    );
+
+    const [[countRows]] = await req.db.query(
+      `SELECT COUNT(*) AS total_rows FROM offers ${whereIdsSql}`,
+      paramsIds
+    );
+
+    const [idRows] = await req.db.query(
+      `SELECT id, MIN(STR_TO_DATE(SUBSTRING_INDEX(expires, ' ', -1), '%m/%d/%y')) AS expiry_date
+       FROM offers ${whereIdsSql}
+       GROUP BY id
+       ORDER BY (expiry_date IS NULL), expiry_date ASC, id
+       LIMIT ? OFFSET ?`,
+      [...paramsIds, limit, offset]
+    );
+
+    if (!idRows.length) {
+      return res.json({
+        offers: [],
+        total: countRow?.total || 0,
+        totalRows: countRows?.total_rows || 0,
+        page,
+        limit
+      });
+    }
+
+    const ids = idRows.map(row => row.id);
+    const placeholders = ids.map(() => "?").join(", ");
+    const whereWithIds = whereQuerySql
+      ? `${whereQuerySql} AND id IN (${placeholders})`
+      : `WHERE id IN (${placeholders})`;
+
+    const [rows] = await req.db.query(
+      `SELECT id, title, summary, image, expires, categories, channels, enrolled, source, card_last5
+       FROM offers
+       ${whereWithIds}
+       ORDER BY (STR_TO_DATE(SUBSTRING_INDEX(expires, ' ', -1), '%m/%d/%y') IS NULL),
+                STR_TO_DATE(SUBSTRING_INDEX(expires, ' ', -1), '%m/%d/%y') ASC,
+                id`,
+      [...paramsQuery, ...ids]
+    );
+    const normalized = rows.map(row => ({
+      ...row,
+      categories: typeof row.categories === "string" ? JSON.parse(row.categories) : row.categories,
+      channels: typeof row.channels === "string" ? JSON.parse(row.channels) : row.channels
+    }));
+    res.json({
+      offers: normalized,
+      total: countRow?.total || 0,
+      totalRows: countRows?.total_rows || 0,
+      page,
+      limit
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/offers", async (req, res, next) => {
+  try {
+    const offers = Array.isArray(req.body?.offers) ? req.body.offers : [];
+    if (!offers.length) {
+      return res.status(400).json({ error: "No offers provided" });
+    }
+
+    const values = offers.map(offer => [
+      offer.id,
+      offer.title,
+      offer.summary || offer.description || "",
+      offer.image || "",
+      offer.expires || offer.expiresAt || "",
+      JSON.stringify(offer.categories || []),
+      JSON.stringify(offer.channels || []),
+      !!offer.enrolled,
+      offer.source || offer.bank || "amex",
+      offer.cardLast5 || offer.card_last5 || ""
+    ]);
+
+    await req.db.query(
+      "INSERT INTO offers (id, title, summary, image, expires, categories, channels, enrolled, source, card_last5) VALUES ? ON DUPLICATE KEY UPDATE title=VALUES(title), summary=VALUES(summary), image=VALUES(image), expires=VALUES(expires), categories=VALUES(categories), channels=VALUES(channels), enrolled=VALUES(enrolled), source=VALUES(source)",
+      [values]
+    );
+
+    const cardsToIds = new Map();
+    offers.forEach(offer => {
+      const card = offer.cardLast5 || offer.card_last5 || "";
+      if (!card) return;
+      const list = cardsToIds.get(card) || [];
+      list.push(offer.id);
+      cardsToIds.set(card, list);
+    });
+
+    for (const [card, ids] of cardsToIds.entries()) {
+      if (!ids.length) {
+        await req.db.query("DELETE FROM offers WHERE card_last5 = ?", [card]);
+        continue;
+      }
+      const placeholders = ids.map(() => "?").join(", ");
+      await req.db.query(
+        `DELETE FROM offers WHERE card_last5 = ? AND id NOT IN (${placeholders})`,
+        [card, ...ids]
+      );
+    }
+
+    res.json({ ok: true, count: values.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.use((err, req, res, _next) => {
+  console.error(err);
+  res.status(500).json({ error: "Server error" });
+});
+
+const PORT = Number(process.env.PORT || 4000);
+app.listen(PORT, () => {
+  console.log(`API listening on http://localhost:${PORT}`);
+});
