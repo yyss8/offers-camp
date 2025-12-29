@@ -3,6 +3,11 @@ import React, { useEffect, useMemo, useState } from "react";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
+  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  const [loggingIn, setLoggingIn] = useState(false);
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -16,6 +21,39 @@ export default function App() {
   const pageSize = 100;
   const now = Date.now();
   const isFiltering = query.trim() !== debouncedQuery.trim();
+
+  useEffect(() => {
+    let active = true;
+    async function loadUser() {
+      setAuthLoading(true);
+      setAuthError("");
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
+        if (!res.ok) {
+          if (res.status === 401) {
+            if (active) setUser(null);
+            return;
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        if (active) {
+          setUser(data.user || null);
+        }
+      } catch (err) {
+        if (active) {
+          setUser(null);
+          setAuthError("Failed to load session");
+        }
+      } finally {
+        if (active) setAuthLoading(false);
+      }
+    }
+    loadUser();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function parseExpires(value) {
     if (!value) return null;
@@ -42,6 +80,13 @@ export default function App() {
   useEffect(() => {
     let active = true;
     async function load() {
+      if (!user) {
+        setOffers([]);
+        setTotal(0);
+        setTotalRows(0);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError("");
       try {
@@ -55,8 +100,14 @@ export default function App() {
         if (cardFilter !== "all") {
           params.set("card", cardFilter);
         }
-        const res = await fetch(`${API_BASE}/api/offers?${params.toString()}`);
+        const res = await fetch(`${API_BASE}/api/offers?${params.toString()}`, {
+          credentials: "include"
+        });
         if (!res.ok) {
+          if (res.status === 401) {
+            if (active) setUser(null);
+            return;
+          }
           throw new Error(`HTTP ${res.status}`);
         }
         const data = await res.json();
@@ -79,14 +130,22 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [page, debouncedQuery, cardFilter]);
+  }, [user, page, debouncedQuery, cardFilter]);
 
   useEffect(() => {
     let active = true;
     async function loadCards() {
+      if (!user) {
+        if (active) setCardOptions([]);
+        return;
+      }
       try {
-        const res = await fetch(`${API_BASE}/api/cards`);
+        const res = await fetch(`${API_BASE}/api/cards`, { credentials: "include" });
         if (!res.ok) {
+          if (res.status === 401) {
+            if (active) setUser(null);
+            return;
+          }
           throw new Error(`HTTP ${res.status}`);
         }
         const data = await res.json();
@@ -103,7 +162,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -162,6 +221,117 @@ export default function App() {
     }
   }, [page, totalPages]);
 
+  async function handleLogin(event) {
+    event.preventDefault();
+    if (loggingIn) return;
+    setLoggingIn(true);
+    setAuthError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          username: loginForm.username.trim(),
+          password: loginForm.password
+        })
+      });
+      if (!res.ok) {
+        throw new Error("Invalid credentials");
+      }
+      const data = await res.json();
+      setUser(data.user || null);
+      setLoginForm({ username: "", password: "" });
+    } catch (err) {
+      setAuthError("Login failed");
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include"
+      });
+    } catch (err) {
+      // Ignore logout errors and still clear local state.
+    } finally {
+      setUser(null);
+    }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="rounded-2xl border border-stone-200 bg-white/80 px-6 py-8 text-sm text-stone-600 shadow-sm">
+            Checking session...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
+        <div className="flex min-h-screen items-center justify-center px-6">
+          <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white/90 p-6 shadow-lg">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-500">
+              Offers Camp
+            </p>
+            <h1 className="mt-3 text-2xl font-semibold text-stone-900">Sign in</h1>
+            <p className="mt-2 text-sm text-stone-600">
+              Log in to access your offers dashboard.
+            </p>
+            <form className="mt-6 flex flex-col gap-4" onSubmit={handleLogin}>
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+                Username or email
+                <input
+                  type="text"
+                  value={loginForm.username}
+                  onChange={event =>
+                    setLoginForm(prev => ({ ...prev, username: event.target.value }))
+                  }
+                  className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                  autoComplete="username"
+                  required
+                />
+              </label>
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+                Password
+                <input
+                  type="password"
+                  value={loginForm.password}
+                  onChange={event =>
+                    setLoginForm(prev => ({ ...prev, password: event.target.value }))
+                  }
+                  className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                  autoComplete="current-password"
+                  required
+                />
+              </label>
+              {authError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
+                  {authError}
+                </div>
+              ) : null}
+              <button
+                type="submit"
+                disabled={loggingIn}
+                className="rounded-full bg-stone-900 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loggingIn ? "Signing in..." : "Sign in"}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
       <div className="flex w-full flex-col gap-8 px-6 py-10">
@@ -177,7 +347,7 @@ export default function App() {
               Displaying normalized offer data captured by the Tampermonkey collector.
             </p>
           </div>
-          <div className="flex w-full max-w-xs items-center justify-between rounded-2xl bg-stone-900 px-5 py-4 text-stone-100 shadow-lg">
+          <div className="flex w-full max-w-xs flex-col gap-3 rounded-2xl bg-stone-900 px-5 py-4 text-stone-100 shadow-lg">
             <div>
               <p className="text-[11px] uppercase tracking-[0.2em] text-stone-400">
                 {debouncedQuery.trim() || cardFilter !== "all" ? "Filtered offers" : "Total offers"}
@@ -186,16 +356,20 @@ export default function App() {
               {(debouncedQuery.trim() || cardFilter !== "all") && (
                 <p className="mt-2 text-[11px] text-stone-400">
                   Filtered
-                  {debouncedQuery.trim() ? ` · “${debouncedQuery.trim()}”` : ""}
+                  {debouncedQuery.trim() ? ` · "${debouncedQuery.trim()}"` : ""}
                   {cardFilter !== "all" ? ` · Card ${cardFilter}` : ""}
                 </p>
               )}
             </div>
-            <div className="text-right">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-stone-400">
-                Source
-              </p>
-              <p className="mt-2 text-lg font-semibold">amex</p>
+            <div className="flex items-center justify-between text-xs text-stone-300">
+              <span>{user.username}</span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-full border border-stone-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-stone-200 transition hover:border-stone-400 hover:text-white"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </header>

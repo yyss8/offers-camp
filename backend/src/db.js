@@ -5,7 +5,7 @@ const {
   DB_PORT = "3306",
   DB_USER = "root",
   DB_PASSWORD = "",
-  DB_NAME = "cc_checker"
+  DB_NAME = "offers_campus"
 } = process.env;
 
 export async function getPool() {

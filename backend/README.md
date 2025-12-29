@@ -2,18 +2,16 @@
 
 This is the API layer for the offers collector.
 
-## Commit
-
-Include:
-- `backend/src/`
-- `backend/sql/`
-- `backend/package.json`
-- `backend/package-lock.json`
-- `backend/.env.example`
-
-Exclude:
-- `backend/node_modules`
-- `backend/.env`
+## To create new user:
+```curl
+curl -X POST http://localhost:4000/api/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{
+       "username": "example",
+       "email": "email@example.com",
+       "password": "password"
+     }'
+```
 
 ## Notes
 

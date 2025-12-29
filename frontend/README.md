@@ -7,7 +7,7 @@ Production domain: `offers.camp` (local dev stays on `localhost`).
 
 Include:
 - `frontend/src/`
-- `frontend/public/` (must include `main.js` and `offers-camp.css`)
+- `frontend/public/` (must include `offers-camp.js` and `offers-camp.css`)
 - `frontend/index.html`
 - `frontend/vite.config.js`
 - `frontend/package.json`

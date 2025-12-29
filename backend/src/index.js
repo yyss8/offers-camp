@@ -1,11 +1,30 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import session from "express-session";
+import bcrypt from "bcryptjs";
 import { getPool } from "./db.js";
 
 const app = express();
-app.use(cors());
+const frontendOrigin = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
+const isProd = process.env.NODE_ENV === "production";
+const sessionSecret = process.env.SESSION_SECRET || "dev-session-secret";
+
+app.set("trust proxy", 1);
+app.use(cors({ origin: frontendOrigin, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
+app.use(
+  session({
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: isProd
+    }
+  })
+);
 
 let pool;
 app.use(async (req, res, next) => {
@@ -24,7 +43,83 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/cards", async (req, res, next) => {
+function requireAuth(req, res, next) {
+  if (!req.session?.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+}
+
+app.get("/api/auth/me", (req, res) => {
+  if (!req.session?.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  res.json({ user: req.session.user });
+});
+
+app.post("/api/auth/register", async (req, res, next) => {
+  try {
+    const username = String(req.body?.username || "").trim();
+    const email = String(req.body?.email || "").trim();
+    const password = String(req.body?.password || "");
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    const hash = await bcrypt.hash(password, 12);
+    const [result] = await req.db.query(
+      "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+      [username, email, hash]
+    );
+    req.session.user = { id: result.insertId, username, email };
+    res.json({ user: req.session.user });
+  } catch (err) {
+    if (err && err.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "User already exists" });
+    }
+    next(err);
+  }
+});
+
+app.post("/api/auth/login", async (req, res, next) => {
+  try {
+    const username = String(req.body?.username || "").trim();
+    const password = String(req.body?.password || "");
+    if (!username || !password) {
+      return res.status(400).json({ error: "Missing credentials" });
+    }
+    const [rows] = await req.db.query(
+      "SELECT id, username, email, password_hash FROM users WHERE username = ? OR email = ? LIMIT 1",
+      [username, username]
+    );
+    const user = rows[0];
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    req.session.user = { id: user.id, username: user.username, email: user.email };
+    res.json({ user: req.session.user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  if (!req.session) {
+    return res.json({ ok: true });
+  }
+  req.session.destroy(err => {
+    if (err) {
+      return res.status(500).json({ error: "Failed to logout" });
+    }
+    res.clearCookie("connect.sid");
+    res.json({ ok: true });
+  });
+});
+
+app.get("/api/cards", requireAuth, async (req, res, next) => {
   try {
     const [rows] = await req.db.query(
       "SELECT DISTINCT card_last5 FROM offers WHERE card_last5 IS NOT NULL AND card_last5 <> '' ORDER BY card_last5"
@@ -35,7 +130,7 @@ app.get("/api/cards", async (req, res, next) => {
   }
 });
 
-app.get("/api/offers", async (req, res, next) => {
+app.get("/api/offers", requireAuth, async (req, res, next) => {
   try {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 100, 1), 200);
