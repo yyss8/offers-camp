@@ -5,7 +5,10 @@
 // @description  Offers Camp unified offers collector shell
 // @match        https://*/*
 // @run-at       document-start
-// @require      http://localhost:5173/offers-camp.js?v=0.11
+// @require      http://localhost:5173/offers-utils.js?v=0.11
+// @require      http://localhost:5173/offers-auth.js?v=0.11
+// @require      http://localhost:5173/providers/amex.js?v=0.11
+// @require      http://localhost:5173/offers-core.js?v=0.11
 // @resource     ccOffersCss http://localhost:5173/offers-camp.css?v=0.11
 // @grant        GM_addStyle
 // @grant        GM_getResourceText

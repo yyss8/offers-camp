@@ -22,7 +22,8 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: isProd
+      secure: isProd,
+      maxAge: 180 * 24 * 60 * 60 * 1000
     }
   })
 );
