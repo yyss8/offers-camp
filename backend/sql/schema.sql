@@ -5,6 +5,7 @@ USE cc_checker;
 
 CREATE TABLE IF NOT EXISTS offers (
   id VARCHAR(64) NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
   title VARCHAR(255) NOT NULL,
   summary TEXT,
   image TEXT,
@@ -15,7 +16,8 @@ CREATE TABLE IF NOT EXISTS offers (
   card_last5 VARCHAR(8) NOT NULL,
   source VARCHAR(32) DEFAULT 'amex',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id, card_last5)
+  PRIMARY KEY (id, card_last5, user_id),
+  KEY offers_user_id_idx (user_id)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
@@ -25,6 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(64) NOT NULL,
   email VARCHAR(191) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
+  api_token_hash VARCHAR(64),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY users_username_unique (username),

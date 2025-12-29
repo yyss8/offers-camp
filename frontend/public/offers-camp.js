@@ -1,6 +1,7 @@
 (() => {
   const API_ENDPOINT = "http://localhost:4000/api/offers";
   const SEND_DEBOUNCE_MS = 1500;
+  const LOGIN_URL = `http://localhost:5173/?tm=1&tmOrigin=${encodeURIComponent(window.location.origin)}`;
 
   const state = {
     activeProvider: null,
@@ -13,6 +14,25 @@
       sent: 0
     }
   };
+  const auth = {
+    token: "",
+    ready: false
+  };
+  const loginOrigin = new URL(LOGIN_URL).origin;
+
+  function getStoredToken() {
+    if (typeof GM_getValue !== "function") {
+      return Promise.resolve("");
+    }
+    return Promise.resolve(GM_getValue("offersCampToken", ""));
+  }
+
+  function saveStoredToken(token) {
+    if (typeof GM_setValue === "function") {
+      return Promise.resolve(GM_setValue("offersCampToken", token));
+    }
+    return Promise.resolve();
+  }
 
   function nowIso() {
     return new Date().toISOString();
@@ -22,8 +42,8 @@
     const panel = document.createElement("div");
     panel.className = "cc-offers-panel";
     panel.innerHTML = `
-      <div class="cc-offers-panel__row">
-        <span class="cc-offers-panel__title">Offers Camp</span>
+      <div class="cc-offers-panel__header">
+        <div class="cc-offers-panel__title">Offers Camp</div>
         <button class="cc-offers-panel__close" type="button">X</button>
       </div>
       <div class="cc-offers-panel__row cc-offers-panel__muted" data-status>
@@ -32,9 +52,13 @@
       <div class="cc-offers-panel__row cc-offers-panel__muted" data-count>
         Collected: 0
       </div>
-      <div class="cc-offers-panel__row">
+      <div class="cc-offers-panel__row cc-offers-panel__bank-row">
         <span class="cc-offers-panel__bank" data-bank>Bank: -</span>
+      </div>
+      <div class="cc-offers-panel__row cc-offers-panel__actions">
         <button class="cc-offers-panel__btn" data-send type="button">Send now</button>
+        <button class="cc-offers-panel__btn" data-login type="button">Login</button>
+        <button class="cc-offers-panel__btn" data-logout type="button">Logout</button>
       </div>
     `;
     panel.querySelector(".cc-offers-panel__close").addEventListener("click", () => {
@@ -49,10 +73,14 @@
   let countEl = null;
   let bankEl = null;
   let sendBtn = null;
+  let loginRow = null;
+  let loginBtn = null;
+  let logoutBtn = null;
   let panelVisible = false;
   let panelTimer = null;
   let toast = null;
   let toastTimer = null;
+  let loginPopup = null;
 
   function fadeOutPanel() {
     if (!panel || !panelVisible) return;
@@ -82,10 +110,14 @@
     countEl = panel.querySelector("[data-count]");
     bankEl = panel.querySelector("[data-bank]");
     sendBtn = panel.querySelector("[data-send]");
+    loginRow = panel.querySelector(".cc-offers-panel__actions");
+    loginBtn = panel.querySelector("[data-login]");
+    logoutBtn = panel.querySelector("[data-logout]");
     panelVisible = true;
-    panelTimer = setTimeout(() => {
-      fadeOutPanel();
-    }, 15000);
+    if (panelTimer) {
+      clearTimeout(panelTimer);
+      panelTimer = null;
+    }
   }
 
   function updateUI() {
@@ -93,6 +125,23 @@
     const bank = state.activeProvider ? state.activeProvider.id : "-";
     bankEl.textContent = `Bank: ${bank}`;
     countEl.textContent = `Collected: ${state.stats.collected}`;
+  }
+
+  function updateAuthUI() {
+    if (!panelVisible) return;
+    const loggedIn = !!auth.token;
+    if (loginRow) {
+      loginRow.style.display = "flex";
+    }
+    if (sendBtn) {
+      sendBtn.style.display = loggedIn ? "inline-flex" : "none";
+    }
+    if (loginBtn) {
+      loginBtn.style.display = loggedIn ? "none" : "inline-flex";
+    }
+    if (logoutBtn) {
+      logoutBtn.style.display = loggedIn ? "inline-flex" : "none";
+    }
   }
 
   function setStatus(text) {
@@ -115,12 +164,16 @@
     state.pending.push(...batch);
     updateUI();
     scheduleSend();
-    if (panelVisible) {
+    if (panelVisible && auth.token) {
       fadeOutPanel();
     }
   }
 
   function scheduleSend() {
+    if (!auth.token) {
+      setStatus("Login required");
+      return;
+    }
     setStatus("Queued");
     showToast(state.pending.length, "queued");
     if (state.pendingTimer) {
@@ -140,15 +193,21 @@
   }
 
   function processQueue() {
-    if (state.inFlight || state.queue.length === 0) return;
+    if (!auth.token || state.inFlight || state.queue.length === 0) return;
     const batch = state.queue.shift();
     if (!batch) return;
     state.inFlight = true;
     setStatus(`Sending ${batch.length}...`);
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (auth.token) {
+      headers.Authorization = `Bearer ${auth.token}`;
+    }
     GM_xmlhttpRequest({
       method: "POST",
       url: API_ENDPOINT,
-      headers: { "Content-Type": "application/json" },
+      headers,
       data: JSON.stringify({ offers: batch }),
       onload: () => {
         state.inFlight = false;
@@ -381,7 +440,76 @@
 
   const providers = [createAmexProvider()];
 
-  function start() {
+  function attachAuthEvents() {
+    if (loginBtn) {
+      loginBtn.onclick = () => {
+        const width = 480;
+        const height = 640;
+        const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+        const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+        loginPopup = window.open(
+          LOGIN_URL,
+          "offersCampLogin",
+          `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+      };
+    }
+    if (logoutBtn) {
+      logoutBtn.onclick = async () => {
+        auth.token = "";
+        await saveStoredToken("");
+        updateAuthUI();
+        setStatus("Logged out");
+      };
+    }
+  }
+
+  function validateToken(token) {
+    return new Promise(resolve => {
+      if (!token) {
+        resolve(false);
+        return;
+      }
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: "http://localhost:4000/api/auth/verify",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        onload: response => {
+          resolve(response.status >= 200 && response.status < 300);
+        },
+        onerror: () => resolve(false),
+        ontimeout: () => resolve(false)
+      });
+    });
+  }
+
+  function handleTokenMessage(event) {
+    if (event.origin !== loginOrigin) return;
+    const data = event.data || {};
+    if (!data || data.type !== "offersCampToken" || !data.token) return;
+    auth.token = String(data.token);
+    saveStoredToken(auth.token).then(() => {
+      ensurePanel();
+      updateAuthUI();
+      setStatus("Ready");
+      if (state.pending.length) {
+        showToast(state.pending.length, "queued");
+      }
+      if (state.pending.length) {
+        scheduleSend();
+      }
+    });
+    if (loginPopup && !loginPopup.closed) {
+      loginPopup.close();
+      loginPopup = null;
+    }
+  }
+
+  window.addEventListener("message", handleTokenMessage);
+
+  async function start() {
     const provider = providers.find(p => p.match());
     if (!provider) {
       return;
@@ -389,8 +517,25 @@
     state.activeProvider = provider;
     ensurePanel();
     updateUI();
+    attachAuthEvents();
+    auth.token = (await getStoredToken()) || "";
+    auth.ready = true;
+    updateAuthUI();
     provider.start();
-    setStatus("Ready");
+    if (auth.token) {
+      setStatus("Checking login...");
+      const valid = await validateToken(auth.token);
+      if (!valid) {
+        auth.token = "";
+        await saveStoredToken("");
+        updateAuthUI();
+        setStatus("Login required");
+      } else {
+        setStatus("Ready");
+      }
+    } else {
+      setStatus("Login required");
+    }
     sendBtn.onclick = () => {
       provider.manualFetch();
       setStatus("Manual send");

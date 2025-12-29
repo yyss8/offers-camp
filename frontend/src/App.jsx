@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
@@ -8,6 +8,8 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loggingIn, setLoggingIn] = useState(false);
+  const tokenSentRef = useRef(false);
+  const [tmStatus, setTmStatus] = useState("");
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -21,6 +23,26 @@ export default function App() {
   const pageSize = 100;
   const now = Date.now();
   const isFiltering = query.trim() !== debouncedQuery.trim();
+  const tmMode = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get("tm") === "1";
+    if (fromQuery) {
+      window.sessionStorage.setItem("offersCampTmMode", "1");
+      return true;
+    }
+    return window.sessionStorage.getItem("offersCampTmMode") === "1";
+  }, []);
+  const tmOrigin = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    const params = new URLSearchParams(window.location.search);
+    const originParam = params.get("tmOrigin");
+    if (originParam) {
+      window.sessionStorage.setItem("offersCampTmOrigin", originParam);
+      return originParam;
+    }
+    return window.sessionStorage.getItem("offersCampTmOrigin") || "";
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -262,6 +284,46 @@ export default function App() {
     }
   }
 
+  async function fetchToken() {
+    const res = await fetch(`${API_BASE}/api/auth/token`, {
+      method: "POST",
+      credentials: "include"
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    return data.token || "";
+  }
+
+  useEffect(() => {
+    if (!tmMode || !user || tokenSentRef.current) return;
+    if (!window.opener || window.opener.closed) return;
+    tokenSentRef.current = true;
+    setTmStatus("Sending token...");
+    fetchToken()
+      .then(token => {
+        if (token) {
+          const targetOrigin = tmOrigin || "*";
+          window.opener.postMessage({ type: "offersCampToken", token }, targetOrigin);
+          setTmStatus("Login complete. Closing...");
+          setTimeout(() => {
+            window.close();
+          }, 200);
+          setTimeout(() => {
+            if (!window.closed) {
+              setTmStatus("Login complete. You can close this window.");
+            }
+          }, 1200);
+          return;
+        }
+        setTmStatus("Failed to send token.");
+      })
+      .catch(() => {
+        setTmStatus("Failed to send token.");
+      });
+  }, [tmMode, user]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
@@ -326,6 +388,31 @@ export default function App() {
                 {loggingIn ? "Signing in..." : "Sign in"}
               </button>
             </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (tmMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
+        <div className="flex min-h-screen items-center justify-center px-6">
+          <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white/90 p-6 shadow-lg">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-500">
+              Offers Camp
+            </p>
+            <h1 className="mt-3 text-2xl font-semibold text-stone-900">Login complete</h1>
+            <p className="mt-2 text-sm text-stone-600">
+              {tmStatus || "Finishing sign-in..."}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.close()}
+              className="mt-6 rounded-full border border-stone-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-stone-700 shadow-sm transition hover:border-stone-400"
+            >
+              Close window
+            </button>
           </div>
         </div>
       </div>

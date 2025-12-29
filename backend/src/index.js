@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import session from "express-session";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { getPool } from "./db.js";
 
 const app = express();
@@ -43,11 +44,42 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
-function requireAuth(req, res, next) {
-  if (!req.session?.user) {
+function hashToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function getBearerToken(req) {
+  const header = String(req.get("authorization") || "");
+  if (!header.toLowerCase().startsWith("bearer ")) {
+    return "";
+  }
+  return header.slice(7).trim();
+}
+
+async function requireAuth(req, res, next) {
+  if (req.session?.user) {
+    req.user = req.session.user;
+    return next();
+  }
+  const token = getBearerToken(req);
+  if (!token) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  next();
+  try {
+    const tokenHash = hashToken(token);
+    const [rows] = await req.db.query(
+      "SELECT id, username, email FROM users WHERE api_token_hash = ? LIMIT 1",
+      [tokenHash]
+    );
+    const user = rows[0];
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    req.user = { id: user.id, username: user.username, email: user.email };
+    next();
+  } catch (err) {
+    next(err);
+  }
 }
 
 app.get("/api/auth/me", (req, res) => {
@@ -55,6 +87,10 @@ app.get("/api/auth/me", (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
   res.json({ user: req.session.user });
+});
+
+app.get("/api/auth/verify", requireAuth, (req, res) => {
+  res.json({ user: req.user });
 });
 
 app.post("/api/auth/register", async (req, res, next) => {
@@ -119,10 +155,28 @@ app.post("/api/auth/logout", (req, res) => {
   });
 });
 
+app.post("/api/auth/token", async (req, res, next) => {
+  try {
+    if (!req.session?.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashToken(token);
+    await req.db.query("UPDATE users SET api_token_hash = ? WHERE id = ?", [
+      tokenHash,
+      req.session.user.id
+    ]);
+    res.json({ token });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get("/api/cards", requireAuth, async (req, res, next) => {
   try {
     const [rows] = await req.db.query(
-      "SELECT DISTINCT card_last5 FROM offers WHERE card_last5 IS NOT NULL AND card_last5 <> '' ORDER BY card_last5"
+      "SELECT DISTINCT card_last5 FROM offers WHERE user_id = ? AND card_last5 IS NOT NULL AND card_last5 <> '' ORDER BY card_last5",
+      [req.user.id]
     );
     res.json({ cards: rows.map(row => row.card_last5) });
   } catch (err) {
@@ -138,8 +192,8 @@ app.get("/api/offers", requireAuth, async (req, res, next) => {
     const query = String(req.query.q || "").trim();
     const card = String(req.query.card || "").trim();
 
-    const whereQuery = [];
-    const paramsQuery = [];
+    const whereQuery = ["user_id = ?"];
+    const paramsQuery = [req.user.id];
     if (query) {
       whereQuery.push("(title LIKE ? OR summary LIKE ?)");
       paramsQuery.push(`%${query}%`, `%${query}%`);
@@ -215,7 +269,7 @@ app.get("/api/offers", requireAuth, async (req, res, next) => {
   }
 });
 
-app.post("/api/offers", async (req, res, next) => {
+app.post("/api/offers", requireAuth, async (req, res, next) => {
   try {
     const offers = Array.isArray(req.body?.offers) ? req.body.offers : [];
     if (!offers.length) {
@@ -224,6 +278,7 @@ app.post("/api/offers", async (req, res, next) => {
 
     const values = offers.map(offer => [
       offer.id,
+      req.user.id,
       offer.title,
       offer.summary || offer.description || "",
       offer.image || "",
@@ -236,7 +291,7 @@ app.post("/api/offers", async (req, res, next) => {
     ]);
 
     await req.db.query(
-      "INSERT INTO offers (id, title, summary, image, expires, categories, channels, enrolled, source, card_last5) VALUES ? ON DUPLICATE KEY UPDATE title=VALUES(title), summary=VALUES(summary), image=VALUES(image), expires=VALUES(expires), categories=VALUES(categories), channels=VALUES(channels), enrolled=VALUES(enrolled), source=VALUES(source)",
+      "INSERT INTO offers (id, user_id, title, summary, image, expires, categories, channels, enrolled, source, card_last5) VALUES ? ON DUPLICATE KEY UPDATE title=VALUES(title), summary=VALUES(summary), image=VALUES(image), expires=VALUES(expires), categories=VALUES(categories), channels=VALUES(channels), enrolled=VALUES(enrolled), source=VALUES(source)",
       [values]
     );
 
@@ -251,15 +306,18 @@ app.post("/api/offers", async (req, res, next) => {
 
     for (const [card, ids] of cardsToIds.entries()) {
       if (!ids.length) {
-        await req.db.query("DELETE FROM offers WHERE card_last5 = ?", [card]);
-        continue;
-      }
-      const placeholders = ids.map(() => "?").join(", ");
-      await req.db.query(
-        `DELETE FROM offers WHERE card_last5 = ? AND id NOT IN (${placeholders})`,
-        [card, ...ids]
-      );
+      await req.db.query("DELETE FROM offers WHERE user_id = ? AND card_last5 = ?", [
+        req.user.id,
+        card
+      ]);
+      continue;
     }
+    const placeholders = ids.map(() => "?").join(", ");
+    await req.db.query(
+      `DELETE FROM offers WHERE user_id = ? AND card_last5 = ? AND id NOT IN (${placeholders})`,
+      [req.user.id, card, ...ids]
+    );
+  }
 
     res.json({ ok: true, count: values.length });
   } catch (err) {
