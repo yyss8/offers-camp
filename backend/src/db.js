@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import knex from "knex";
 
 const {
   DB_HOST = "127.0.0.1",
@@ -8,13 +8,20 @@ const {
   DB_NAME = "offers_campus"
 } = process.env;
 
-export async function getPool() {
-  return mysql.createPool({
-    host: DB_HOST,
-    port: Number(DB_PORT),
-    user: DB_USER,
-    password: DB_PASSWORD,
-    database: DB_NAME,
-    connectionLimit: 5
+let db;
+
+export function getDb() {
+  if (db) return db;
+  db = knex({
+    client: "mysql2",
+    connection: {
+      host: DB_HOST,
+      port: Number(DB_PORT),
+      user: DB_USER,
+      password: DB_PASSWORD,
+      database: DB_NAME
+    },
+    pool: { min: 0, max: 5 }
   });
+  return db;
 }
