@@ -96,6 +96,15 @@
     sendBtn = panel.querySelector("[data-send]");
     loginBtn = panel.querySelector("[data-login]");
     logoutBtn = panel.querySelector("[data-logout]");
+    if (sendBtn) {
+      sendBtn.style.display = "none";
+    }
+    if (loginBtn) {
+      loginBtn.style.display = "inline-flex";
+    }
+    if (logoutBtn) {
+      logoutBtn.style.display = "none";
+    }
     panelVisible = true;
   }
 

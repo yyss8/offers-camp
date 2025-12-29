@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Offers Camp Collector
+// @name         Offers Camp Collector (Dev)
 // @namespace    https://offers.camp
 // @version      0.1
 // @description  Offers Camp unified offers collector shell
