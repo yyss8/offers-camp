@@ -3,14 +3,14 @@
 // @namespace    https://offers.camp
 // @version      0.1
 // @description  Offers Camp unified offers collector shell
-// @match        https://*/*
+// @match        https://global.americanexpress.com/*
 // @run-at       document-start
-// @require      http://localhost:5173/offers-config.js?v=0.11
-// @require      http://localhost:5173/offers-utils.js?v=0.11
-// @require      http://localhost:5173/offers-auth.js?v=0.11
-// @require      http://localhost:5173/providers/amex.js?v=0.11
-// @require      http://localhost:5173/offers-core.js?v=0.11
-// @resource     ccOffersCss http://localhost:5173/offers-camp.css?v=0.11
+// @require      http://localhost:5173/tm/js/offers-config.js?v=0.11
+// @require      http://localhost:5173/tm/js/offers-utils.js?v=0.11
+// @require      http://localhost:5173/tm/js/offers-auth.js?v=0.11
+// @require      http://localhost:5173/tm/js/providers/amex.js?v=0.11
+// @require      http://localhost:5173/tm/js/offers-core.js?v=0.11
+// @resource     ccOffersCss http://localhost:5173/tm/js/offers-camp.css?v=0.11
 // @grant        GM_addStyle
 // @grant        GM_getResourceText
 // @grant        GM_getValue

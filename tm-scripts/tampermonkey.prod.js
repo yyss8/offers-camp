@@ -3,14 +3,14 @@
 // @namespace    https://offers.camp
 // @version      0.1
 // @description  Offers Camp unified offers collector shell (prod)
-// @match        https://*/*
+// @match        https://global.americanexpress.com/*
 // @run-at       document-start
-// @require      https://tm.offers.camp/offers-config.js?v=0.1
-// @require      https://tm.offers.camp/offers-utils.js?v=0.1
-// @require      https://tm.offers.camp/offers-auth.js?v=0.1
-// @require      https://tm.offers.camp/providers/amex.js?v=0.1
-// @require      https://tm.offers.camp/offers-core.js?v=0.1
-// @resource     ccOffersCss https://tm.offers.camp/offers-camp.css?v=0.1
+// @require      https://tm.offers.camp/js/offers-config.js?v=0.1
+// @require      https://tm.offers.camp/js/offers-utils.js?v=0.1
+// @require      https://tm.offers.camp/js/offers-auth.js?v=0.1
+// @require      https://tm.offers.camp/js/providers/amex.js?v=0.1
+// @require      https://tm.offers.camp/js/offers-core.js?v=0.1
+// @resource     ccOffersCss https://tm.offers.camp/js/offers-camp.css?v=0.1
 // @grant        GM_addStyle
 // @grant        GM_getResourceText
 // @grant        GM_getValue

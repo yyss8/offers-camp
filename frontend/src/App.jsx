@@ -524,7 +524,7 @@ export default function App() {
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filtered.map(offer => (
                 <article
-                  className="flex h-full flex-col gap-3 rounded-2xl border border-stone-200 bg-white/80 p-5 shadow-sm backdrop-blur"
+                  className="relative flex h-full flex-col gap-3 rounded-2xl border border-stone-200 bg-white/80 p-5 shadow-sm backdrop-blur"
                   key={offer.id}
                 >
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -537,9 +537,20 @@ export default function App() {
                       className="h-10 w-10 rounded-lg border border-stone-200 object-contain bg-white"
                     />
                   ) : null}
-                  <h2 className="min-w-0 flex-1 break-words text-base font-semibold text-stone-900">
-                    {offer.title || "Untitled offer"}
-                  </h2>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    <h2 className="min-w-0 flex-1 break-words text-base font-semibold text-stone-900">
+                      {offer.title || "Untitled offer"}
+                    </h2>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
+                      <img
+                        src="/images/cards/amex.png"
+                        alt="Amex"
+                        loading="lazy"
+                        className="h-4 w-4 object-contain"
+                      />
+                      <span>{offer.source || "amex"}</span>
+                    </span>
+                  </div>
                 </div>
                 <p className="text-sm text-stone-700">
                   {offer.summary || "No description provided."}
