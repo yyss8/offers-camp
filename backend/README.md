@@ -18,5 +18,5 @@ Exclude:
 ## Notes
 
 - This service is part of a monorepo (`backend/`, `frontend/`, `tm-scripts/`).
-- Keep API and data model in sync with `frontend/public/main.js` (Tampermonkey main logic).
+- Keep API and data model in sync with `frontend/public/offers-camp.js` (Tampermonkey main logic).
 - Production domain: `offers.camp` (local dev stays on `localhost`).

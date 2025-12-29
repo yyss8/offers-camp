@@ -1,6 +1,6 @@
 {
-  "name": "cc-checker-backend",
-  "version": "0.1.0",
+  "name": "offers-camp-backend",
+  "version": "dev",
   "private": true,
   "type": "module",
   "scripts": {

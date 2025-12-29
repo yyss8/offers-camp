@@ -1,6 +1,6 @@
 {
-  "name": "cc-checker-frontend",
-  "version": "0.1.0",
+  "name": "offers-camp-frontend",
+  "version": "dev",
   "private": true,
   "type": "module",
   "scripts": {

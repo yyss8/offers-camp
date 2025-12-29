@@ -227,10 +227,9 @@
     function getCardLast5() {
       const el = pageWindow.document?.querySelector(".simple-switcher-display-option[aria-label]");
       const label = el?.getAttribute("aria-label") || "";
-      const matchValue = label.match(/ending in\\s*([0-9]{4,6})/i);
-      const digits = matchValue ? matchValue[1] : label.replace(/\\D/g, "");
+      const digits = label.replace(/\D/g, "");
       if (!digits) return "";
-      return digits.length >= 5 ? digits.slice(-5) : digits;
+      return digits.slice(-5);
     }
 
     function getAccountNumberProxyFromLink() {

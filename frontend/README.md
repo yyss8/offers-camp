@@ -19,5 +19,5 @@ Exclude:
 
 ## Notes
 
-- `frontend/public/main.js` is the Tampermonkey runtime entry and must be committed.
+- `frontend/public/offers-camp.js` is the Tampermonkey runtime entry and must be committed.
 - `frontend/public/offers-camp.css` is loaded by the shell userscript.
