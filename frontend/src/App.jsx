@@ -341,9 +341,12 @@ export default function App() {
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
         <div className="flex min-h-screen items-center justify-center px-6">
           <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white/90 p-6 shadow-lg">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-500">
-              Offers Camp
-            </p>
+            <img
+              src="/images/logo-sm.png"
+              alt="Offers Camp"
+              className="h-7 w-auto"
+              loading="lazy"
+            />
             <h1 className="mt-3 text-2xl font-semibold text-stone-900">Sign in</h1>
             <p className="mt-2 text-sm text-stone-600">
               Log in to access your offers dashboard.
@@ -399,9 +402,12 @@ export default function App() {
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
         <div className="flex min-h-screen items-center justify-center px-6">
           <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white/90 p-6 shadow-lg">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-500">
-              Offers Camp
-            </p>
+            <img
+              src="/images/logo-sm.png"
+              alt="Offers Camp"
+              className="h-7 w-auto"
+              loading="lazy"
+            />
             <h1 className="mt-3 text-2xl font-semibold text-stone-900">Login complete</h1>
             <p className="mt-2 text-sm text-stone-600">
               {tmStatus || "Finishing sign-in..."}
@@ -424,9 +430,12 @@ export default function App() {
       <div className="flex w-full flex-col gap-8 px-6 py-10">
         <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-500">
-              Offers Camp
-            </p>
+            <img
+              src="/images/logo-sm.png"
+              alt="Offers Camp"
+              className="h-10 w-auto"
+              loading="lazy"
+            />
             <h1 className="mt-3 text-3xl font-semibold text-stone-900 sm:text-4xl">
               Collected offers from your active session
             </h1>
