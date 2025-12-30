@@ -12,10 +12,12 @@
 
   const state = {
     activeProvider: null,
-    pending: [],
+    pending: new Map(),
     pendingTimer: null,
     inFlight: false,
     queue: [],
+    sendGroups: new Map(),
+    groupId: 0,
     stats: {
       collected: 0,
       sent: 0
@@ -136,22 +138,46 @@
 
   function pushOffers(providerId, offers) {
     if (!offers.length) return;
-    const unique = new Map();
+    let added = 0;
     offers.forEach(offer => {
-      const key = `${providerId}:${offer.id}:${offer.cardLast5 || ""}`;
-      if (!unique.has(key)) {
-        unique.set(key, offer);
+      const cardKey = `${providerId}:${offer.cardLast5 || ""}`;
+      let cardMap = state.pending.get(cardKey);
+      if (!cardMap) {
+        cardMap = new Map();
+        state.pending.set(cardKey, cardMap);
       }
+      const offerKey = `${providerId}:${offer.id}:${offer.cardLast5 || ""}`;
+      if (cardMap.has(offerKey)) return;
+      cardMap.set(offerKey, offer);
+      added += 1;
     });
-    const batch = Array.from(unique.values());
-    if (!batch.length) return;
-    state.stats.collected += batch.length;
-    state.pending.push(...batch);
+    if (added === 0) return;
+    state.stats.collected += added;
     updateUI();
     scheduleSend();
     if (panelVisible && auth.isLoggedIn()) {
       fadeOutPanel();
     }
+  }
+
+  function getCardLabels(cardKeys) {
+    return Array.from(new Set(cardKeys)).map(key => {
+      const parts = key.split(":");
+      const last = parts[1] || "";
+      return last ? `Card ${last}` : "Card unknown";
+    });
+  }
+
+  function getPendingSnapshot() {
+    const cardKeys = Array.from(state.pending.keys());
+    let totalOffers = 0;
+    state.pending.forEach(offerMap => {
+      totalOffers += offerMap.size;
+    });
+    return {
+      totalOffers,
+      cardLabels: getCardLabels(cardKeys)
+    };
   }
 
   function scheduleSend() {
@@ -160,19 +186,36 @@
       return;
     }
     setStatus("Queued");
-    showToast(state.pending.length, "queued");
+    const snapshot = getPendingSnapshot();
+    updateToast("queued", snapshot.totalOffers, snapshot.cardLabels);
     if (state.pendingTimer) {
       clearTimeout(state.pendingTimer);
     }
     state.pendingTimer = setTimeout(() => {
-      const batch = state.pending.slice();
-      state.pending = [];
-      enqueueSend(batch);
+      if (state.pending.size === 0) return;
+      const entries = Array.from(state.pending.entries());
+      state.pending.clear();
+      const groupId = state.groupId + 1;
+      state.groupId = groupId;
+      const batches = entries.map(([cardKey, offerMap]) => ({
+        groupId,
+        cardKey,
+        offers: Array.from(offerMap.values())
+      }));
+      const totalOffers = batches.reduce((sum, batch) => sum + batch.offers.length, 0);
+      const cardLabels = getCardLabels(batches.map(batch => batch.cardKey));
+      state.sendGroups.set(groupId, {
+        totalBatches: batches.length,
+        sentBatches: 0,
+        totalOffers,
+        cardLabels
+      });
+      batches.forEach(batch => enqueueSend(batch));
     }, SEND_DEBOUNCE_MS);
   }
 
   function enqueueSend(batch) {
-    if (!batch.length) return;
+    if (!batch || !batch.offers || batch.offers.length === 0) return;
     state.queue.push(batch);
     processQueue();
   }
@@ -182,7 +225,11 @@
     const batch = state.queue.shift();
     if (!batch) return;
     state.inFlight = true;
-    setStatus(`Sending ${batch.length}...`);
+    const group = state.sendGroups.get(batch.groupId);
+    if (group) {
+      updateToast("sending", group.totalOffers, group.cardLabels);
+    }
+    setStatus(`Sending ${batch.offers.length}...`);
     const headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${auth.getToken()}`
@@ -191,12 +238,19 @@
       method: "POST",
       url: API_ENDPOINT,
       headers,
-      data: JSON.stringify({ offers: batch }),
+      data: JSON.stringify({ offers: batch.offers }),
       onload: () => {
         state.inFlight = false;
-        state.stats.sent += batch.length;
-        setStatus(`Sent ${batch.length}`);
-        showToast(batch.length, "sent");
+        state.stats.sent += batch.offers.length;
+        setStatus(`Sent ${batch.offers.length}`);
+        const groupState = state.sendGroups.get(batch.groupId);
+        if (groupState) {
+          groupState.sentBatches += 1;
+          if (groupState.sentBatches >= groupState.totalBatches) {
+            updateToast("sent", groupState.totalOffers, groupState.cardLabels);
+            state.sendGroups.delete(batch.groupId);
+          }
+        }
         processQueue();
       },
       onerror: () => {
@@ -207,7 +261,7 @@
     });
   }
 
-  function showToast(count, label = "sent") {
+  function updateToast(status, count, cardLabels) {
     if (toast) {
       toast.remove();
       toast = null;
@@ -218,17 +272,26 @@
     }
     const next = document.createElement("div");
     next.className = "cc-offers-toast";
-    const cardLabel = state.activeProvider && state.activeProvider.getCardLabel
-      ? state.activeProvider.getCardLabel()
-      : "";
     const icon =
-      label === "queued"
-        ? '<span class="cc-offers-toast__icon cc-offers-toast__spinner"></span>'
-        : '<span class="cc-offers-toast__icon cc-offers-toast__check"></span>';
-    const suffix = cardLabel ? ` - ${cardLabel}` : "";
+      status === "sent"
+        ? '<span class="cc-offers-toast__icon cc-offers-toast__check"></span>'
+        : '<span class="cc-offers-toast__icon cc-offers-toast__spinner"></span>';
+    const label =
+      status === "sent"
+        ? "sent"
+        : status === "sending"
+          ? "sending"
+          : "queued";
+    const cards = Array.isArray(cardLabels) ? cardLabels : [];
+    const cardsMarkup = cards.length
+      ? cards.map(card => `<span>${card}</span>`).join("")
+      : "";
     next.innerHTML = `
       ${icon}
-      <span>${count} offers ${label}${suffix}</span>
+      <div class="cc-offers-toast__content">
+        <span>${count} offers ${label}</span>
+        ${cardsMarkup ? `<div class="cc-offers-toast__cards">${cardsMarkup}</div>` : ""}
+      </div>
       <button class="cc-offers-toast__close" type="button">X</button>
     `;
     next.querySelector(".cc-offers-toast__close").addEventListener("click", () => {
@@ -236,9 +299,11 @@
     });
     document.documentElement.appendChild(next);
     toast = next;
-    toastTimer = setTimeout(() => {
-      fadeOutToast();
-    }, 3000);
+    if (status === "sent") {
+      toastTimer = setTimeout(() => {
+        fadeOutToast();
+      }, 3000);
+    }
   }
 
   function fadeOutToast() {
@@ -281,7 +346,7 @@
         if (panelVisible && !provider.needsManualFetch) {
           fadeOutPanel();
         }
-        if (state.pending.length) {
+        if (state.pending.size) {
           scheduleSend();
         }
       }
