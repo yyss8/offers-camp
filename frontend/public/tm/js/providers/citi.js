@@ -15,6 +15,9 @@
 
     function extractLast4(label) {
       if (!label) return "";
+      if (utils.extractLastDigits) {
+        return utils.extractLastDigits(label, 4);
+      }
       const matchValue = String(label).match(/-\s*(\d+)/);
       if (!matchValue) return "";
       return matchValue[1];
@@ -34,6 +37,9 @@
     }
 
     function parseChannels(value) {
+      if (utils.parseChannels) {
+        return utils.parseChannels(value);
+      }
       if (!value) return [];
       return String(value)
         .split("_")
@@ -42,6 +48,9 @@
     }
 
     function formatExpiry(value) {
+      if (utils.formatExpiry) {
+        return utils.formatExpiry(value);
+      }
       if (!value) return "";
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return value;
@@ -82,6 +91,15 @@
     }
 
     function installFetchHook(pushOffers) {
+      if (utils.installFetchJsonHook) {
+        utils.installFetchJsonHook(
+          pageWindow,
+          "__ccOffersCitiFetch",
+          url => url.includes(API_HINT),
+          data => handlePayload(data, pushOffers)
+        );
+        return;
+      }
       if (!pageWindow.fetch || pageWindow.fetch.__ccOffersCitiHooked) return;
       const originalFetch = pageWindow.fetch;
       pageWindow.fetch = function (...args) {
@@ -100,6 +118,15 @@
     }
 
     function installXhrHook(pushOffers) {
+      if (utils.installXhrJsonHook) {
+        utils.installXhrJsonHook(
+          pageWindow,
+          "__ccOffersCitiXhr",
+          url => url.includes(API_HINT),
+          data => handlePayload(data, pushOffers)
+        );
+        return;
+      }
       if (!pageWindow.XMLHttpRequest || pageWindow.XMLHttpRequest.__ccOffersCitiHooked) return;
       const OriginalXHR = pageWindow.XMLHttpRequest;
       function PatchedXHR() {

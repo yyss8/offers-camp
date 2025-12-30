@@ -15,6 +15,9 @@
     function getCardLast5() {
       const el = pageWindow.document?.querySelector(".simple-switcher-display-option[aria-label]");
       const label = el?.getAttribute("aria-label") || "";
+      if (utils.extractLastDigits) {
+        return utils.extractLastDigits(label, 5);
+      }
       const digits = label.replace(/\D/g, "");
       if (!digits) return "";
       return digits.slice(-5);
@@ -72,6 +75,15 @@
     }
 
     function installFetchHook(pushOffers) {
+      if (utils.installFetchJsonHook) {
+        utils.installFetchJsonHook(
+          pageWindow,
+          "__ccOffersAmexFetch",
+          url => url.toLowerCase().includes("offer"),
+          data => handleOffers(data, pushOffers)
+        );
+        return;
+      }
       if (!pageWindow.fetch || pageWindow.fetch.__ccOffersHooked) return;
       const originalFetch = pageWindow.fetch;
       pageWindow.fetch = function (...args) {
@@ -90,6 +102,15 @@
     }
 
     function installXhrHook(pushOffers) {
+      if (utils.installXhrJsonHook) {
+        utils.installXhrJsonHook(
+          pageWindow,
+          "__ccOffersAmexXhr",
+          url => url && url.toLowerCase().includes("offer"),
+          data => handleOffers(data, pushOffers)
+        );
+        return;
+      }
       if (!pageWindow.XMLHttpRequest || pageWindow.XMLHttpRequest.__ccOffersHooked) return;
       const OriginalXHR = pageWindow.XMLHttpRequest;
       function PatchedXHR() {
