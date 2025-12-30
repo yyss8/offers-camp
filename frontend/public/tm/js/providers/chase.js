@@ -2,46 +2,29 @@
   const OffersCamp = window.OffersCamp = window.OffersCamp || {};
   const utils = OffersCamp.utils || {};
 
-  function createCitiProvider() {
+  function createChaseProvider() {
     const pageWindow = typeof unsafeWindow !== "undefined" ? unsafeWindow : window;
-    const API_HINT = "/merchantOffers/retrieve";
+    const API_HINT = "/customer-offers";
 
     function match() {
-      return (
-        location.host.includes("online.citi.com") &&
-        location.pathname.includes("/merchantoffers")
-      );
-    }
-
-    function extractLast4(label) {
-      if (!label) return "";
-      const matchValue = String(label).match(/-\s*(\d+)/);
-      if (!matchValue) return "";
-      return matchValue[1];
+      if (!location.host.includes("secure.chase.com")) {
+        return false;
+      }
+      if (location.pathname.includes("/merchantOffers/offer-hub")) {
+        return true;
+      }
+      return location.hash.includes("/merchantOffers/offer-hub");
     }
 
     function getSelectedCardLast4() {
-      const el = pageWindow.document?.querySelector("#cds-dropdown .cds-dd2-text-nowrap");
+      const host = pageWindow.document?.querySelector("#select-credit-card-account");
+      const root = host && host.shadowRoot ? host.shadowRoot : null;
+      const el = root
+        ? root.querySelector("#select-select-credit-card-account span")
+        : pageWindow.document?.querySelector("#select-select-credit-card-account span");
       const label = el?.textContent || "";
-      return extractLast4(label);
-    }
-
-    function getPrimaryCardLast4(payload) {
-      const cards = Array.isArray(payload?.cardArtDetails) ? payload.cardArtDetails : [];
-      const primary = cards[0];
-      if (!primary) return "";
-      return extractLast4(primary.displayProductName || "");
-    }
-
-    function parseChannels(value) {
-      if (utils.parseChannels) {
-        return utils.parseChannels(value);
-      }
-      if (!value) return [];
-      return String(value)
-        .split("_")
-        .map(item => item.trim())
-        .filter(Boolean);
+      const matchValue = label.match(/\(\.\.\.(\d{4})\)/);
+      return matchValue ? matchValue[1] : "";
     }
 
     function formatExpiry(value) {
@@ -58,24 +41,33 @@
     }
 
     function normalizeOffers(payload) {
-      const groups = Array.isArray(payload?.merchantOffers) ? payload.merchantOffers : [];
-      if (!groups.length) return [];
-      const cardLast5 = getSelectedCardLast4() || getPrimaryCardLast4(payload);
+      const groups = Array.isArray(payload?.customerOffers) ? payload.customerOffers : [];
       const offers = groups.flatMap(group => (Array.isArray(group.offers) ? group.offers : []));
       if (!offers.length) return [];
+      const cardLast5 = getSelectedCardLast4();
+
       return offers
         .map(offer => ({
-          source: "citi",
-          id: offer.offerId,
-          title: offer.merchantName || offer.offerTitle || "Citi Offer",
-          summary: offer.offerTitle || offer.merchantName || "",
-          expires: formatExpiry(offer.offerEndDate || ""),
-          categories: offer.merchantCategory ? [offer.merchantCategory] : [],
-          enrolled: offer.offerStatus === "ENROLLED",
+          source: "chase",
+          id: offer.offerIdentifier,
+          title: offer.merchantDetails?.merchantName || offer.offerDisplayDetails?.offerHeaderText || "Chase Offer",
+          summary: offer.offerDisplayDetails?.rewardDescriptionText || offer.offerDisplayDetails?.shortMessageText || "",
+          expires: formatExpiry(offer.offerDetails?.offerEndTimestamp || ""),
+          categories: Array.isArray(offer.offerCategories)
+            ? offer.offerCategories.map(category => category.offerCategoryName).filter(Boolean)
+            : [],
+          enrolled: offer.offerStatusName === "ACTIVATED",
           sourceUrl: location.href,
           collectedAt: utils.nowIso ? utils.nowIso() : new Date().toISOString(),
-          image: offer.merchantImageURL || offer.merchantBannerImageUrl || "",
-          channels: parseChannels(offer.redemptionType),
+          image:
+            offer.offerDisplayDetails?.images?.heroImage?.imageLinkUrlText ||
+            offer.offerDisplayDetails?.images?.logo?.imageLinkUrlText ||
+            "",
+          channels: Array.isArray(offer.offerDisplayDetails?.locationRestrictions)
+            ? offer.offerDisplayDetails.locationRestrictions
+                .map(item => item.locationName)
+                .filter(Boolean)
+            : [],
           cardLast5
         }))
         .filter(item => item.id && item.expires);
@@ -84,20 +76,41 @@
     function handlePayload(payload, pushOffers) {
       const normalized = normalizeOffers(payload);
       if (!normalized.length) return;
-      pushOffers("citi", normalized);
+      if (!normalized.some(item => !item.cardLast5)) {
+        pushOffers("chase", normalized);
+        return;
+      }
+      const waitForCard = utils.waitForValue || waitForCardLast4;
+      waitForCard(getSelectedCardLast4, cardLast5 => {
+        const filled = cardLast5
+          ? normalized.map(item => (item.cardLast5 ? item : { ...item, cardLast5 }))
+          : normalized;
+        pushOffers("chase", filled);
+      });
+    }
+
+    function waitForCardLast4(onReady, attempts = 10) {
+      const cardLast5 = getSelectedCardLast4();
+      if (cardLast5 || attempts <= 0) {
+        onReady(cardLast5);
+        return;
+      }
+      pageWindow.setTimeout(() => {
+        waitForCardLast4(onReady, attempts - 1);
+      }, 500);
     }
 
     function installFetchHook(pushOffers) {
       if (utils.installFetchJsonHook) {
         utils.installFetchJsonHook(
           pageWindow,
-          "__ccOffersCitiFetch",
+          "__ccOffersChaseFetch",
           url => url.includes(API_HINT),
           data => handlePayload(data, pushOffers)
         );
         return;
       }
-      if (!pageWindow.fetch || pageWindow.fetch.__ccOffersCitiHooked) return;
+      if (!pageWindow.fetch || pageWindow.fetch.__ccOffersChaseHooked) return;
       const originalFetch = pageWindow.fetch;
       pageWindow.fetch = function (...args) {
         const requestUrl =
@@ -111,20 +124,20 @@
         }).catch(() => {});
         return fetchPromise;
       };
-      pageWindow.fetch.__ccOffersCitiHooked = true;
+      pageWindow.fetch.__ccOffersChaseHooked = true;
     }
 
     function installXhrHook(pushOffers) {
       if (utils.installXhrJsonHook) {
         utils.installXhrJsonHook(
           pageWindow,
-          "__ccOffersCitiXhr",
+          "__ccOffersChaseXhr",
           url => url.includes(API_HINT),
           data => handlePayload(data, pushOffers)
         );
         return;
       }
-      if (!pageWindow.XMLHttpRequest || pageWindow.XMLHttpRequest.__ccOffersCitiHooked) return;
+      if (!pageWindow.XMLHttpRequest || pageWindow.XMLHttpRequest.__ccOffersChaseHooked) return;
       const OriginalXHR = pageWindow.XMLHttpRequest;
       function PatchedXHR() {
         const xhr = new OriginalXHR();
@@ -150,12 +163,12 @@
       }
       PatchedXHR.prototype = OriginalXHR.prototype;
       Object.assign(PatchedXHR, OriginalXHR);
-      PatchedXHR.__ccOffersCitiHooked = true;
+      PatchedXHR.__ccOffersChaseHooked = true;
       pageWindow.XMLHttpRequest = PatchedXHR;
     }
 
     return {
-      id: "citi",
+      id: "chase",
       match,
       getCardLabel() {
         const last4 = getSelectedCardLast4();
@@ -170,9 +183,9 @@
   }
 
   if (typeof OffersCamp.registerProvider === "function") {
-    OffersCamp.registerProvider(createCitiProvider());
+    OffersCamp.registerProvider(createChaseProvider());
   } else {
     OffersCamp.providers = OffersCamp.providers || [];
-    OffersCamp.providers.push(createCitiProvider());
+    OffersCamp.providers.push(createChaseProvider());
   }
 })();

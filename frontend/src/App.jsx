@@ -2,6 +2,49 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
+function OfferDescription({ html, source, onView }) {
+  const contentRef = useRef(null);
+  const [clamped, setClamped] = useState(false);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const checkClamp = () => {
+      setClamped(el.scrollHeight > el.clientHeight + 1);
+    };
+    checkClamp();
+  }, [html]);
+
+  const showDetails = source === "chase" ? !!html : clamped;
+
+  return (
+    <div>
+      <div
+        ref={contentRef}
+        className="text-sm text-stone-700"
+        style={{
+          display: "-webkit-box",
+          WebkitBoxOrient: "vertical",
+          WebkitLineClamp: 3,
+          overflow: "hidden"
+        }}
+        dangerouslySetInnerHTML={{
+          __html: html || "No description provided."
+        }}
+      />
+      {showDetails ? (
+        <button
+          type="button"
+          onClick={onView}
+          className="mt-2 text-xs font-semibold uppercase tracking-wide text-amber-700 transition hover:text-amber-900"
+        >
+          View details
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -22,6 +65,7 @@ export default function App() {
   const [total, setTotal] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
   const [page, setPage] = useState(1);
+  const [activeModal, setActiveModal] = useState(null);
   const pageSize = 100;
   const now = Date.now();
   const isFiltering = query.trim() !== debouncedQuery.trim();
@@ -650,9 +694,18 @@ export default function App() {
                     })()}
                   </div>
                 </div>
-                <p className="text-sm text-stone-700">
-                  {offer.summary || "No description provided."}
-                </p>
+                <OfferDescription
+                  html={offer.summary || ""}
+                  source={(offer.source || "").toLowerCase()}
+                  onView={() =>
+                    setActiveModal({
+                      title: offer.title || "Offer details",
+                      html: offer.summary || "",
+                      source: (offer.source || "").toLowerCase(),
+                      image: offer.image || ""
+                    })
+                  }
+                />
                 <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
                   <span
                     className={isExpiringSoon(offer.expires) ? "font-semibold text-red-600" : ""}
@@ -765,6 +818,47 @@ export default function App() {
             </div>
           </>
         )}
+        {activeModal ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 px-6 py-10">
+            <div className="w-full max-w-2xl rounded-2xl border border-stone-200 bg-white p-6 shadow-xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-400">
+                    {activeModal.source || "offer"}
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold text-stone-900">
+                    {activeModal.title}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="rounded-full border border-stone-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-stone-600 transition hover:border-stone-400 hover:text-stone-900"
+                >
+                  Close
+                </button>
+              </div>
+              <div
+                className="mt-4 max-h-[60vh] overflow-y-auto text-sm text-stone-700"
+              >
+                {activeModal.image ? (
+                  <img
+                    src={activeModal.image}
+                    alt=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    className="mb-4 h-auto w-[223px] rounded-xl border border-stone-200 bg-white object-contain shadow-sm"
+                  />
+                ) : null}
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: activeModal.html || "No description provided."
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -5,13 +5,6 @@
     nowIso() {
       return new Date().toISOString();
     },
-    extractLastDigits(value, count) {
-      if (!value) return "";
-      const digits = String(value).replace(/\D/g, "");
-      if (!digits) return "";
-      if (!count) return digits;
-      return digits.slice(-count);
-    },
     parseChannels(value) {
       if (!value) return [];
       return String(value)
@@ -47,6 +40,17 @@
       wrapped[flag] = true;
       pageWindow.fetch = wrapped;
       return true;
+    },
+    waitForValue(getter, onReady, attempts = 10, delayMs = 300) {
+      if (typeof getter !== "function" || typeof onReady !== "function") return;
+      const value = getter();
+      if (value || attempts <= 0) {
+        onReady(value);
+        return;
+      }
+      setTimeout(() => {
+        OffersCamp.utils.waitForValue(getter, onReady, attempts - 1, delayMs);
+      }, delayMs);
     },
     installXhrJsonHook(pageWindow, flag, shouldHandle, onJson) {
       if (!pageWindow || !pageWindow.XMLHttpRequest) return false;
