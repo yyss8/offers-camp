@@ -16,7 +16,9 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [cardFilter, setCardFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [cardOptions, setCardOptions] = useState([]);
+  const [sourceOptions, setSourceOptions] = useState([]);
   const [total, setTotal] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
   const [page, setPage] = useState(1);
@@ -79,6 +81,15 @@ export default function App() {
 
   function parseExpires(value) {
     if (!value) return null;
+    const isoMatch = String(value).match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const date = new Date(
+        Number(isoMatch[1]),
+        Number(isoMatch[2]) - 1,
+        Number(isoMatch[3])
+      );
+      if (!Number.isNaN(date.getTime())) return date.getTime();
+    }
     const match = String(value).match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
     if (!match) return null;
     const month = Number(match[1]);
@@ -122,6 +133,9 @@ export default function App() {
         if (cardFilter !== "all") {
           params.set("card", cardFilter);
         }
+        if (sourceFilter !== "all") {
+          params.set("source", sourceFilter);
+        }
         const res = await fetch(`${API_BASE}/offers?${params.toString()}`, {
           credentials: "include"
         });
@@ -152,7 +166,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [user, page, debouncedQuery, cardFilter]);
+  }, [user, page, debouncedQuery, cardFilter, sourceFilter]);
 
   useEffect(() => {
     let active = true;
@@ -187,6 +201,38 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    let active = true;
+    async function loadSources() {
+      if (!user) {
+        if (active) setSourceOptions([]);
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/sources`, { credentials: "include" });
+        if (!res.ok) {
+          if (res.status === 401) {
+            if (active) setUser(null);
+            return;
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        if (active) {
+          setSourceOptions(Array.isArray(data.sources) ? data.sources : []);
+        }
+      } catch (err) {
+        if (active) {
+          setSourceOptions([]);
+        }
+      }
+    }
+    loadSources();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(query);
     }, 750);
@@ -197,7 +243,7 @@ export default function App() {
     if (page !== 1) {
       setPage(1);
     }
-  }, [debouncedQuery, cardFilter]);
+  }, [debouncedQuery, cardFilter, sourceFilter]);
 
   const filtered = useMemo(() => {
     const grouped = new Map();
@@ -235,6 +281,18 @@ export default function App() {
       return left.localeCompare(right, undefined, { sensitivity: "base" });
     });
   }, [offers]);
+
+  function formatExpiresDisplay(value) {
+    if (!value) return "";
+    const isoMatch = String(value).match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const mm = String(Number(isoMatch[2]));
+      const dd = String(Number(isoMatch[3]));
+      const yy = isoMatch[1].slice(-2);
+      return `${mm}/${dd}/${yy}`;
+    }
+    return String(value).replace(/^Expires\\s+/i, "");
+  }
 
   const totalPages = Math.max(Math.ceil(total / pageSize), 1);
   useEffect(() => {
@@ -446,14 +504,17 @@ export default function App() {
           <div className="flex w-full max-w-xs flex-col gap-3 rounded-2xl bg-stone-900 px-5 py-4 text-stone-100 shadow-lg">
             <div>
               <p className="text-[11px] uppercase tracking-[0.2em] text-stone-400">
-                {debouncedQuery.trim() || cardFilter !== "all" ? "Filtered offers" : "Total offers"}
+                {debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all"
+                  ? "Filtered offers"
+                  : "Total offers"}
               </p>
               <p className="mt-2 text-2xl font-semibold">{total}</p>
-              {(debouncedQuery.trim() || cardFilter !== "all") && (
+              {(debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all") && (
                 <p className="mt-2 text-[11px] text-stone-400">
                   Filtered
                   {debouncedQuery.trim() ? ` · "${debouncedQuery.trim()}"` : ""}
                   {cardFilter !== "all" ? ` · Card ${cardFilter}` : ""}
+                  {sourceFilter !== "all" ? ` · ${sourceFilter}` : ""}
                 </p>
               )}
             </div>
@@ -486,19 +547,41 @@ export default function App() {
             className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-44"
           >
             <option value="all">All cards</option>
-            {cardOptions.map(card => (
-              <option key={card} value={card}>
-                Card {card}
-              </option>
-            ))}
+            {cardOptions.map(card => {
+              const value = card?.cardLast5 || "";
+              const source = card?.source || "";
+              const labelSource = source ? source[0].toUpperCase() + source.slice(1) : "Card";
+              const label = value ? `${labelSource} - ${value}` : labelSource;
+              return (
+                <option key={`${source}-${value}`} value={value}>
+                  {label}
+                </option>
+              );
+            })}
           </select>
-          {(debouncedQuery.trim() || cardFilter !== "all") && (
+          <select
+            value={sourceFilter}
+            onChange={event => setSourceFilter(event.target.value)}
+            className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-40"
+          >
+            <option value="all">All sources</option>
+            {sourceOptions.map(source => {
+              const label = source ? source[0].toUpperCase() + source.slice(1) : source;
+              return (
+                <option key={source} value={source}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+          {(debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all") && (
             <button
               type="button"
               onClick={() => {
                 setQuery("");
                 setDebouncedQuery("");
                 setCardFilter("all");
+                setSourceFilter("all");
                 setPage(1);
               }}
               className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-400 sm:w-auto"
@@ -550,15 +633,21 @@ export default function App() {
                     <h2 className="min-w-0 flex-1 break-words text-base font-semibold text-stone-900">
                       {offer.title || "Untitled offer"}
                     </h2>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
-                      <img
-                        src="/images/cards/amex.png"
-                        alt="Amex"
-                        loading="lazy"
-                        className="h-4 w-4 object-contain"
-                      />
-                      <span>{offer.source || "amex"}</span>
-                    </span>
+                    {(() => {
+                      const sourceKey = (offer.source || "amex").toLowerCase();
+                      const iconSrc = `/images/cards/${sourceKey}.png`;
+                      return (
+                        <span className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
+                          <img
+                            src={iconSrc}
+                            alt={sourceKey}
+                            loading="lazy"
+                            className="h-4 w-4 object-contain"
+                          />
+                          <span>{sourceKey}</span>
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
                 <p className="text-sm text-stone-700">
@@ -568,7 +657,9 @@ export default function App() {
                   <span
                     className={isExpiringSoon(offer.expires) ? "font-semibold text-red-600" : ""}
                   >
-                    {offer.expires || "No expiry"}
+                    {formatExpiresDisplay(offer.expires)
+                      ? `Expires ${formatExpiresDisplay(offer.expires)}`
+                      : "No expiry"}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">

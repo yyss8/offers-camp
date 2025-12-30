@@ -184,6 +184,15 @@ app.get("/cards", requireAuth, async (req, res, next) => {
   }
 });
 
+app.get("/sources", requireAuth, async (req, res, next) => {
+  try {
+    const sources = await req.offerRepo.listSources(req.user.id);
+    res.json({ sources });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get("/offers", requireAuth, async (req, res, next) => {
   try {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
@@ -191,7 +200,8 @@ app.get("/offers", requireAuth, async (req, res, next) => {
     const offset = (page - 1) * limit;
     const query = String(req.query.q || "").trim();
     const card = String(req.query.card || "").trim();
-    const filters = { query, card };
+    const source = String(req.query.source || "").trim();
+    const filters = { query, card, source };
 
     const totals = await req.offerRepo.countTotals(req.user.id, filters);
     const ids = await req.offerRepo.listOfferIds(req.user.id, filters, { limit, offset });

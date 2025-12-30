@@ -1,4 +1,4 @@
-function buildQuery(db, userId, { query, card }) {
+function buildQuery(db, userId, { query, card, source }) {
   const base = db("offers").where("user_id", userId);
   if (query) {
     base.andWhere(builder =>
@@ -7,6 +7,9 @@ function buildQuery(db, userId, { query, card }) {
   }
   if (card && card !== "all") {
     base.andWhere("card_last5", card);
+  }
+  if (source && source !== "all") {
+    base.andWhere("source", source);
   }
   return base;
 }
@@ -21,16 +24,50 @@ function parseJson(value) {
   }
 }
 
+function toDateString(value) {
+  if (!value) return null;
+  const raw = String(value).replace(/^Expires\s+/i, "").trim();
+  if (!raw) return null;
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  const match = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (!match) return null;
+  let year = Number(match[3]);
+  if (year < 100) {
+    year += 2000;
+  }
+  const mm = String(Number(match[1])).padStart(2, "0");
+  const dd = String(Number(match[2])).padStart(2, "0");
+  return `${year}-${mm}-${dd}`;
+}
+
 export function createOfferRepo(db) {
   return {
     async listCards(userId) {
       const rows = await db("offers")
-        .distinct("card_last5")
+        .distinct("card_last5", "source")
         .where("user_id", userId)
         .whereNotNull("card_last5")
         .whereNot("card_last5", "")
         .orderBy("card_last5");
-      return rows.map(row => row.card_last5);
+      return rows.map(row => ({
+        cardLast5: row.card_last5,
+        source: row.source || ""
+      }));
+    },
+    async listSources(userId) {
+      const rows = await db("offers")
+        .distinct("source")
+        .where("user_id", userId)
+        .whereNotNull("source")
+        .whereNot("source", "")
+        .orderBy("source");
+      return rows.map(row => row.source);
     },
     async countTotals(userId, filters) {
       const base = buildQuery(db, userId, filters);
@@ -48,9 +85,7 @@ export function createOfferRepo(db) {
       const rows = await buildQuery(db, userId, filters)
         .select(
           "id",
-          db.raw(
-            "MIN(STR_TO_DATE(SUBSTRING_INDEX(expires, ' ', -1), '%m/%d/%y')) as expiry_date"
-          )
+          db.raw("MIN(expires) as expiry_date")
         )
         .groupBy("id")
         .orderByRaw("(expiry_date IS NULL), expiry_date ASC, id")
@@ -74,8 +109,7 @@ export function createOfferRepo(db) {
         )
         .whereIn("id", ids)
         .orderByRaw(
-          "(STR_TO_DATE(SUBSTRING_INDEX(expires, ' ', -1), '%m/%d/%y') IS NULL), " +
-            "STR_TO_DATE(SUBSTRING_INDEX(expires, ' ', -1), '%m/%d/%y') ASC, id"
+          "(expires IS NULL), expires ASC, id"
         );
       return rows.map(row => ({
         ...row,
@@ -91,7 +125,7 @@ export function createOfferRepo(db) {
         title: offer.title,
         summary: offer.summary || offer.description || "",
         image: offer.image || "",
-        expires: offer.expires || offer.expiresAt || "",
+        expires: toDateString(offer.expires || offer.expiresAt),
         categories: JSON.stringify(offer.categories || []),
         channels: JSON.stringify(offer.channels || []),
         enrolled: !!offer.enrolled,

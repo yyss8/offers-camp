@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS offers_camp.offers (
   title VARCHAR(255) NOT NULL,
   summary TEXT,
   image TEXT,
-  expires VARCHAR(64),
+  expires DATE,
   categories JSON,
   channels JSON,
   enrolled BOOLEAN DEFAULT FALSE,

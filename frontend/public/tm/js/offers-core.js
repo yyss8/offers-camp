@@ -262,24 +262,35 @@
       return;
     }
     state.activeProvider = provider;
-    ensurePanel();
-    updateUI();
     await auth.init({
       loginUrl: LOGIN_URL,
       verifyUrl: VERIFY_URL,
       onStatus: setStatus,
       onAuthChange: () => {
-        updateAuthUI();
+        if (auth.isLoggedIn()) {
+          if (panelVisible && !provider.needsManualFetch) {
+            fadeOutPanel();
+          }
+        } else {
+          ensurePanel();
+          updateUI();
+          updateAuthUI();
+        }
       },
       onTokenSaved: () => {
-        ensurePanel();
-        updateAuthUI();
-        setStatus("Ready");
+        if (panelVisible && !provider.needsManualFetch) {
+          fadeOutPanel();
+        }
         if (state.pending.length) {
           scheduleSend();
         }
       }
     });
+    if (!auth.isLoggedIn() || provider.needsManualFetch) {
+      ensurePanel();
+      updateUI();
+      updateAuthUI();
+    }
     provider.start(pushOffers);
     sendBtn.onclick = () => {
       provider.manualFetch(pushOffers, setStatus);

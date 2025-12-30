@@ -154,6 +154,7 @@
 
     return {
       id: "amex",
+      needsManualFetch: true,
       match,
       getCardLabel() {
         const last5 = getCardLast5();
