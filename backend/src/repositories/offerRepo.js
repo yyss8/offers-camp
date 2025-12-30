@@ -1,5 +1,9 @@
 function buildQuery(db, userId, { query, card, source }) {
-  const base = db("offers").where("user_id", userId);
+  const base = db("offers")
+    .where("user_id", userId)
+    .andWhere(builder => {
+      builder.whereNull("expires").orWhere("expires", ">=", db.fn.now());
+    });
   if (query) {
     base.andWhere(builder =>
       builder.where("title", "like", `%${query}%`).orWhere("summary", "like", `%${query}%`)
