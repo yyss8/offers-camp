@@ -10,7 +10,8 @@
     loginPopup: null,
     onStatus: () => {},
     onAuthChange: () => {},
-    onTokenSaved: () => {}
+    onTokenSaved: () => {},
+    listeners: new Set()
   };
 
   function getStoredToken() {
@@ -52,6 +53,7 @@
     state.token = token;
     await saveStoredToken(token);
     state.onAuthChange(Boolean(token));
+    state.listeners.forEach(fn => fn(Boolean(token)));
     if (token) {
       state.onTokenSaved(token);
     }
@@ -61,6 +63,7 @@
     state.token = "";
     await saveStoredToken("");
     state.onAuthChange(false);
+    state.listeners.forEach(fn => fn(false));
   }
 
   function handleTokenMessage(event) {
@@ -120,6 +123,11 @@
     init,
     openLogin,
     logout: clearToken,
+    onChange(fn) {
+      if (typeof fn !== "function") return () => {};
+      state.listeners.add(fn);
+      return () => state.listeners.delete(fn);
+    },
     getToken() {
       return state.token;
     },

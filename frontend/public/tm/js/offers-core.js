@@ -9,6 +9,7 @@
   const SEND_DEBOUNCE_MS = 1500;
   const LOGIN_URL = `${appBase}/?tm=1&tmOrigin=${encodeURIComponent(window.location.origin)}`;
   const VERIFY_URL = `${apiBase}/auth/verify`;
+  const settingsStore = OffersCamp.settings;
 
   const state = {
     activeProvider: null,
@@ -18,11 +19,24 @@
     queue: [],
     sendGroups: new Map(),
     groupId: 0,
+    forceSend: false,
     stats: {
       collected: 0,
       sent: 0
     }
   };
+  let settings = settingsStore ? settingsStore.get() : { autoSend: true, providers: {} };
+  if (settingsStore && typeof settingsStore.onChange === "function") {
+    settingsStore.onChange(next => {
+      settings = next;
+      if (!settings.autoSend) {
+        ensurePanel();
+        updateUI();
+        updateAuthUI();
+        setStatus("Manual send required");
+      }
+    });
+  }
 
   OffersCamp.providers = OffersCamp.providers || [];
   OffersCamp.registerProvider = OffersCamp.registerProvider || function registerProvider(provider) {
@@ -50,6 +64,7 @@
         <button class="cc-offers-panel__btn" data-send type="button">Send now</button>
         <button class="cc-offers-panel__btn" data-login type="button">Login</button>
         <button class="cc-offers-panel__btn" data-logout type="button">Logout</button>
+        <button class="cc-offers-panel__btn" data-settings type="button">Settings</button>
       </div>
     `;
     panel.querySelector(".cc-offers-panel__close").addEventListener("click", () => {
@@ -66,6 +81,7 @@
   let sendBtn = null;
   let loginBtn = null;
   let logoutBtn = null;
+  let settingsBtn = null;
   let panelVisible = false;
   let toast = null;
   let toastTimer = null;
@@ -85,6 +101,7 @@
       sendBtn = null;
       loginBtn = null;
       logoutBtn = null;
+      settingsBtn = null;
     }, 700);
   }
 
@@ -98,6 +115,7 @@
     sendBtn = panel.querySelector("[data-send]");
     loginBtn = panel.querySelector("[data-login]");
     logoutBtn = panel.querySelector("[data-logout]");
+    settingsBtn = panel.querySelector("[data-settings]");
     if (sendBtn) {
       sendBtn.style.display = "none";
     }
@@ -120,8 +138,11 @@
   function updateAuthUI() {
     if (!panelVisible) return;
     const loggedIn = auth.isLoggedIn();
+    const allowManual = state.activeProvider
+      ? state.activeProvider.needsManualFetch || !settings.autoSend
+      : !settings.autoSend;
     if (sendBtn) {
-      sendBtn.style.display = loggedIn ? "inline-flex" : "none";
+      sendBtn.style.display = loggedIn && allowManual ? "inline-flex" : "none";
     }
     if (loginBtn) {
       loginBtn.style.display = loggedIn ? "none" : "inline-flex";
@@ -155,7 +176,7 @@
     state.stats.collected += added;
     updateUI();
     scheduleSend();
-    if (panelVisible && auth.isLoggedIn()) {
+    if (panelVisible && auth.isLoggedIn() && settings.autoSend) {
       fadeOutPanel();
     }
   }
@@ -185,6 +206,14 @@
       setStatus("Login required");
       return;
     }
+    if (!settings.autoSend && !state.forceSend) {
+      ensurePanel();
+      updateUI();
+      updateAuthUI();
+      setStatus("Manual send required");
+      return;
+    }
+    state.forceSend = false;
     setStatus("Queued");
     const snapshot = getPendingSnapshot();
     updateToast("queued", snapshot.totalOffers, snapshot.cardLabels);
@@ -322,8 +351,20 @@
   }
 
   async function start() {
+    if (typeof GM_registerMenuCommand === "function") {
+      GM_registerMenuCommand("Offers Camp Settings", () => {
+        if (OffersCamp.settingsUI && typeof OffersCamp.settingsUI.open === "function") {
+          OffersCamp.settingsUI.open();
+          return;
+        }
+        ensurePanel();
+      });
+    }
     const provider = OffersCamp.providers.find(p => p.match());
     if (!provider) {
+      return;
+    }
+    if (settings.providers && settings.providers[provider.id] === false) {
       return;
     }
     state.activeProvider = provider;
@@ -332,6 +373,7 @@
       verifyUrl: VERIFY_URL,
       onStatus: setStatus,
       onAuthChange: () => {
+        updateAuthUI();
         if (auth.isLoggedIn()) {
           if (panelVisible && !provider.needsManualFetch) {
             fadeOutPanel();
@@ -343,6 +385,7 @@
         }
       },
       onTokenSaved: () => {
+        updateAuthUI();
         if (panelVisible && !provider.needsManualFetch) {
           fadeOutPanel();
         }
@@ -358,9 +401,12 @@
     }
     provider.start(pushOffers);
     sendBtn.onclick = () => {
+      state.forceSend = true;
       provider.manualFetch(pushOffers, setStatus);
       setStatus("Manual send");
-      fadeOutPanel();
+      if (settings.autoSend) {
+        fadeOutPanel();
+      }
     };
     loginBtn.onclick = () => auth.openLogin();
     logoutBtn.onclick = () => {
@@ -369,6 +415,13 @@
         updateAuthUI();
       });
     };
+    if (settingsBtn) {
+      settingsBtn.onclick = () => {
+        if (OffersCamp.settingsUI && typeof OffersCamp.settingsUI.open === "function") {
+          OffersCamp.settingsUI.open();
+        }
+      };
+    }
   }
 
   OffersCamp.start = OffersCamp.start || start;

@@ -9,6 +9,7 @@
 // @run-at       document-start
 // @require      http://localhost:5173/tm/js/offers-config.js?v=0.11
 // @require      http://localhost:5173/tm/js/offers-utils.js?v=0.11
+// @require      http://localhost:5173/tm/js/offers-settings.js?v=0.11
 // @require      http://localhost:5173/tm/js/offers-auth.js?v=0.11
 // @require      http://localhost:5173/tm/js/providers/amex.js?v=0.11
 // @require      http://localhost:5173/tm/js/providers/citi.js?v=0.11
@@ -19,6 +20,7 @@
 // @grant        GM_getResourceText
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
 // @connect      localhost
