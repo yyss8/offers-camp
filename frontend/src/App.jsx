@@ -1,51 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
+import AuthLoading from "./components/AuthLoading";
+import DashboardHeader from "./components/DashboardHeader";
+import FiltersBar from "./components/FiltersBar";
+import LoginView from "./components/LoginView";
+import OfferModal from "./components/OfferModal";
+import OffersGrid from "./components/OffersGrid";
+import Pagination from "./components/Pagination";
+import TmLoginComplete from "./components/TmLoginComplete";
+
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 const IS_LOCAL_API =
   API_BASE.includes("localhost") || API_BASE.includes("127.0.0.1");
-
-function OfferDescription({ html, source, onView }) {
-  const contentRef = useRef(null);
-  const [clamped, setClamped] = useState(false);
-
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const checkClamp = () => {
-      setClamped(el.scrollHeight > el.clientHeight + 1);
-    };
-    checkClamp();
-  }, [html]);
-
-  const showDetails = source === "chase" ? !!html : clamped;
-
-  return (
-    <div>
-      <div
-        ref={contentRef}
-        className="text-sm text-stone-700"
-        style={{
-          display: "-webkit-box",
-          WebkitBoxOrient: "vertical",
-          WebkitLineClamp: 3,
-          overflow: "hidden"
-        }}
-        dangerouslySetInnerHTML={{
-          __html: html || "No description provided."
-        }}
-      />
-      {showDetails ? (
-        <button
-          type="button"
-          onClick={onView}
-          className="mt-2 text-xs font-semibold uppercase tracking-wide text-amber-700 transition hover:text-amber-900"
-        >
-          View details
-        </button>
-      ) : null}
-    </div>
-  );
-}
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -375,6 +341,10 @@ export default function App() {
     }
   }
 
+  function handleLoginChange(field, value) {
+    setLoginForm(prev => ({ ...prev, [field]: value }));
+  }
+
   async function handleLogout() {
     try {
       await fetch(`${API_BASE}/auth/logout`, {
@@ -429,221 +399,64 @@ export default function App() {
   }, [tmMode, user]);
 
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="rounded-2xl border border-stone-200 bg-white/80 px-6 py-8 text-sm text-stone-600 shadow-sm">
-            Checking session...
-          </div>
-        </div>
-      </div>
-    );
+    return <AuthLoading />;
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
-        <div className="flex min-h-screen items-center justify-center px-6">
-          <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white/90 p-6 shadow-lg">
-            <img
-              src="/images/logo-sm.png"
-              alt="Offers Camp"
-              className="h-7 w-auto"
-              loading="lazy"
-            />
-            <h1 className="mt-3 text-2xl font-semibold text-stone-900">Sign in</h1>
-            <p className="mt-2 text-sm text-stone-600">
-              Log in to access your offers dashboard.
-            </p>
-            {IS_LOCAL_API ? (
-              <p className="mt-2 text-xs text-stone-500">
-                (Local server detected. Use username <b>1</b> and password <b>1</b>.)
-              </p>
-            ) : null}
-            <form className="mt-6 flex flex-col gap-4" onSubmit={handleLogin}>
-              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
-                Username or email
-                <input
-                  type="text"
-                  value={loginForm.username}
-                  onChange={event =>
-                    setLoginForm(prev => ({ ...prev, username: event.target.value }))
-                  }
-                  className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
-                  autoComplete="username"
-                  required
-                />
-              </label>
-              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
-                Password
-                <input
-                  type="password"
-                  value={loginForm.password}
-                  onChange={event =>
-                    setLoginForm(prev => ({ ...prev, password: event.target.value }))
-                  }
-                  className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
-                  autoComplete="current-password"
-                  required
-                />
-              </label>
-              {authError ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
-                  {authError}
-                </div>
-              ) : null}
-              <button
-                type="submit"
-                disabled={loggingIn}
-                className="rounded-full bg-stone-900 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loggingIn ? "Signing in..." : "Sign in"}
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
+      <LoginView
+        isLocalApi={IS_LOCAL_API}
+        loginForm={loginForm}
+        onLoginChange={handleLoginChange}
+        onSubmit={handleLogin}
+        authError={authError}
+        loggingIn={loggingIn}
+      />
     );
   }
 
   if (tmMode) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
-        <div className="flex min-h-screen items-center justify-center px-6">
-          <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white/90 p-6 shadow-lg">
-            <img
-              src="/images/logo-sm.png"
-              alt="Offers Camp"
-              className="h-7 w-auto"
-              loading="lazy"
-            />
-            <h1 className="mt-3 text-2xl font-semibold text-stone-900">Login complete</h1>
-            <p className="mt-2 text-sm text-stone-600">
-              {tmStatus || "Finishing sign-in..."}
-            </p>
-            <button
-              type="button"
-              onClick={() => window.close()}
-              className="mt-6 rounded-full border border-stone-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-stone-700 shadow-sm transition hover:border-stone-400"
-            >
-              Close window
-            </button>
-          </div>
-        </div>
-      </div>
+      <TmLoginComplete tmStatus={tmStatus} onClose={() => window.close()} />
     );
   }
+
+  const showReset =
+    debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
       <div className="flex w-full flex-col gap-8 px-6 py-10">
-        <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <img
-              src="/images/logo-sm.png"
-              alt="Offers Camp"
-              className="h-10 w-auto"
-              loading="lazy"
-            />
-            <h1 className="mt-3 text-3xl font-semibold text-stone-900 sm:text-4xl">
-              Collected offers from your active session
-            </h1>
-            <p className="mt-3 text-sm text-stone-600">
-              Displaying normalized offer data captured by the Tampermonkey collector.
-            </p>
-          </div>
-          <div className="flex w-full max-w-xs flex-col gap-3 rounded-2xl bg-stone-900 px-5 py-4 text-stone-100 shadow-lg">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.2em] text-stone-400">
-                {debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all"
-                  ? "Filtered offers"
-                  : "Total offers"}
-              </p>
-              <p className="mt-2 text-2xl font-semibold">{total}</p>
-              {(debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all") && (
-                <p className="mt-2 text-[11px] text-stone-400">
-                  Filtered
-                  {debouncedQuery.trim() ? ` · "${debouncedQuery.trim()}"` : ""}
-                  {cardFilter !== "all" ? ` · Card ${cardFilter}` : ""}
-                  {sourceFilter !== "all" ? ` · ${sourceFilter}` : ""}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center justify-between text-xs text-stone-300">
-              <span>{user.username}</span>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="rounded-full border border-stone-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-stone-200 transition hover:border-stone-400 hover:text-white"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </header>
+        <DashboardHeader
+          debouncedQuery={debouncedQuery}
+          cardFilter={cardFilter}
+          sourceFilter={sourceFilter}
+          total={total}
+          user={user}
+          onLogout={handleLogout}
+        />
 
-        <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full flex-1">
-            <input
-              type="search"
-              placeholder="Search title or summary"
-              value={query}
-              onChange={event => setQuery(event.target.value)}
-              className="w-full rounded-full border border-stone-300 bg-white/80 px-5 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
-            />
-          </div>
-          <select
-            value={cardFilter}
-            onChange={event => setCardFilter(event.target.value)}
-            className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-44"
-          >
-            <option value="all">All cards</option>
-            {cardOptions.map(card => {
-              const value = card?.cardLast5 || "";
-              const source = card?.source || "";
-              const labelSource = source ? source[0].toUpperCase() + source.slice(1) : "Card";
-              const label = value ? `${labelSource} - ${value}` : labelSource;
-              return (
-                <option key={`${source}-${value}`} value={value}>
-                  {label}
-                </option>
-              );
-            })}
-          </select>
-          <select
-            value={sourceFilter}
-            onChange={event => setSourceFilter(event.target.value)}
-            className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-40"
-          >
-            <option value="all">All sources</option>
-            {sourceOptions.map(source => {
-              const label = source ? source[0].toUpperCase() + source.slice(1) : source;
-              return (
-                <option key={source} value={source}>
-                  {label}
-                </option>
-              );
-            })}
-          </select>
-          {(debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all") && (
-            <button
-              type="button"
-              onClick={() => {
-                setQuery("");
-                setDebouncedQuery("");
-                setCardFilter("all");
-                setSourceFilter("all");
-                setPage(1);
-              }}
-              className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-400 sm:w-auto"
-            >
-              Reset filters
-            </button>
-          )}
-          <span className="text-xs font-medium text-stone-500">
-            {filtered.length} shown (page {page} of {totalPages})
-          </span>
-        </section>
+        <FiltersBar
+          query={query}
+          onQueryChange={setQuery}
+          cardFilter={cardFilter}
+          onCardFilterChange={setCardFilter}
+          sourceFilter={sourceFilter}
+          onSourceFilterChange={setSourceFilter}
+          cardOptions={cardOptions}
+          sourceOptions={sourceOptions}
+          showReset={showReset}
+          onReset={() => {
+            setQuery("");
+            setDebouncedQuery("");
+            setCardFilter("all");
+            setSourceFilter("all");
+            setPage(1);
+          }}
+          filteredCount={filtered.length}
+          page={page}
+          totalPages={totalPages}
+        />
 
         {loading ? (
           <div className="rounded-2xl border border-stone-200 bg-white/80 px-6 py-10 text-center text-sm text-stone-600 shadow-sm">
@@ -660,212 +473,22 @@ export default function App() {
           </div>
         ) : (
           <>
-            <div className="relative">
-              {(loading || isFiltering) && (
-                <div className="absolute inset-0 z-10 rounded-2xl bg-white/70 backdrop-blur-sm"></div>
-              )}
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filtered.map(offer => (
-                <article
-                  className="relative flex h-full flex-col gap-3 rounded-2xl border border-stone-200 bg-white/80 p-5 shadow-sm backdrop-blur"
-                  key={offer.id}
-                >
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  {offer.image ? (
-                    <img
-                      src={offer.image}
-                      alt=""
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      className="h-10 w-10 rounded-lg border border-stone-200 object-contain bg-white"
-                    />
-                  ) : null}
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                    <h2 className="min-w-0 flex-1 break-words text-base font-semibold text-stone-900">
-                      {offer.title || "Untitled offer"}
-                    </h2>
-                    {(() => {
-                      const sourceKey = (offer.source || "amex").toLowerCase();
-                      const iconSrc = `/images/cards/${sourceKey}.png`;
-                      return (
-                        <span className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
-                          <img
-                            src={iconSrc}
-                            alt={sourceKey}
-                            loading="lazy"
-                            className="h-4 w-4 object-contain"
-                          />
-                          <span>{sourceKey}</span>
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </div>
-                <OfferDescription
-                  html={offer.summary || ""}
-                  source={(offer.source || "").toLowerCase()}
-                  onView={() =>
-                    setActiveModal({
-                      title: offer.title || "Offer details",
-                      html: offer.summary || "",
-                      source: (offer.source || "").toLowerCase(),
-                      image: offer.image || ""
-                    })
-                  }
-                />
-                <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                  <span
-                    className={isExpiringSoon(offer.expires) ? "font-semibold text-red-600" : ""}
-                  >
-                    {formatExpiresDisplay(offer.expires)
-                      ? `Expires ${formatExpiresDisplay(offer.expires)}`
-                      : "No expiry"}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(offer.categories || []).map(tag => (
-                    <span
-                      className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-amber-800"
-                      key={`cat-${offer.id}-${tag}`}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                  {(offer.channels || []).map(tag => (
-                    <span
-                      className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-700"
-                      key={`chn-${offer.id}-${tag}`}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                {offer.cards && offer.cards.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {offer.cards.map(card => (
-                      <span
-                        className={`rounded-full border px-2 py-1 text-[11px] font-medium ${
-                          card.enrolled
-                            ? "border-emerald-600 bg-emerald-600 text-white"
-                            : "border-stone-200 bg-white text-stone-600"
-                        }`}
-                        key={`card-${offer.id}-${card.last5}`}
-                      >
-                        Card {card.last5}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </article>
-            ))}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-stone-600">
-              <button
-                type="button"
-                onClick={() => setPage(prev => Math.max(prev - 1, 1))}
-                disabled={page <= 1}
-                className="rounded-full border border-stone-300 bg-white/80 px-3 py-2 text-xs font-medium text-stone-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Prev
-              </button>
-              {(() => {
-                const items = [];
-                const start = Math.max(1, page - 4);
-                const end = Math.min(totalPages, page + 4);
-                if (start > 1) {
-                  items.push(1);
-                }
-                if (start > 2) {
-                  items.push("...");
-                }
-                for (let i = start; i <= end; i += 1) {
-                  items.push(i);
-                }
-                if (end < totalPages - 1) {
-                  items.push("...");
-                }
-                if (end < totalPages) {
-                  items.push(totalPages);
-                }
-                return items.map((item, index) => {
-                  if (item === "...") {
-                    return (
-                      <span key={`ellipsis-${index}`} className="px-2 text-stone-400">
-                        ...
-                      </span>
-                    );
-                  }
-                  const pageNum = item;
-                  const active = pageNum === page;
-                  return (
-                    <button
-                      key={`page-${pageNum}`}
-                      type="button"
-                      onClick={() => setPage(pageNum)}
-                      className={`rounded-full border px-3 py-2 text-xs font-medium shadow-sm ${
-                        active
-                          ? "border-stone-900 bg-stone-900 text-white"
-                          : "border-stone-300 bg-white/80 text-stone-700"
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                });
-              })()}
-              <button
-                type="button"
-                onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={page >= totalPages}
-                className="rounded-full border border-stone-300 bg-white/80 px-3 py-2 text-xs font-medium text-stone-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
+            <OffersGrid
+              offers={filtered}
+              loading={loading}
+              isFiltering={isFiltering}
+              formatExpiresDisplay={formatExpiresDisplay}
+              isExpiringSoon={isExpiringSoon}
+              onViewDetails={setActiveModal}
+            />
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
           </>
         )}
-        {activeModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 px-6 py-10">
-            <div className="w-full max-w-2xl rounded-2xl border border-stone-200 bg-white p-6 shadow-xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-400">
-                    {activeModal.source || "offer"}
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-stone-900">
-                    {activeModal.title}
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveModal(null)}
-                  className="rounded-full border border-stone-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-stone-600 transition hover:border-stone-400 hover:text-stone-900"
-                >
-                  Close
-                </button>
-              </div>
-              <div
-                className="mt-4 max-h-[60vh] overflow-y-auto text-sm text-stone-700"
-              >
-                {activeModal.image ? (
-                  <img
-                    src={activeModal.image}
-                    alt=""
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    className="mb-4 h-auto w-[223px] rounded-xl border border-stone-200 bg-white object-contain shadow-sm"
-                  />
-                ) : null}
-                <div
-                  dangerouslySetInnerHTML={{
-                    __html: activeModal.html || "No description provided."
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <OfferModal modal={activeModal} onClose={() => setActiveModal(null)} />
       </div>
     </div>
   );
