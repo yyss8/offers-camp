@@ -16,8 +16,8 @@ export default function FiltersBar({
   totalPages
 }) {
   return (
-    <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="relative w-full flex-1">
+    <section className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="relative w-full sm:flex-1">
         <input
           type="search"
           placeholder="Search title or summary"
@@ -29,16 +29,21 @@ export default function FiltersBar({
       <select
         value={cardFilter}
         onChange={event => onCardFilterChange(event.target.value)}
-        className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-44"
+        className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-80"
       >
         <option value="all">All cards</option>
         {cardOptions.map(card => {
           const value = card?.cardLast5 || "";
           const source = card?.source || "";
+          const cardLabel = (card?.cardLabel || card?.card_label || "").trim();
           const labelSource = source
             ? source[0].toUpperCase() + source.slice(1)
             : "Card";
-          const label = value ? `${labelSource} - ${value}` : labelSource;
+          const label = cardLabel
+            ? `${cardLabel} - ${value}`
+            : value
+              ? `${labelSource} - ${value}`
+              : labelSource;
           return (
             <option key={`${source}-${value}`} value={value}>
               {label}
@@ -49,7 +54,7 @@ export default function FiltersBar({
       <select
         value={sourceFilter}
         onChange={event => onSourceFilterChange(event.target.value)}
-        className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-40"
+        className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-44"
       >
         <option value="all">All sources</option>
         {sourceOptions.map(source => {
@@ -70,7 +75,7 @@ export default function FiltersBar({
           Reset filters
         </button>
       )}
-      <span className="text-xs font-medium text-stone-500">
+      <span className="text-xs font-medium text-stone-500 sm:ml-auto">
         {filteredCount} shown (page {page} of {totalPages})
       </span>
     </section>

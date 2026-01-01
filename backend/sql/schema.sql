@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS offers_camp.offers (
   channels JSON,
   enrolled BOOLEAN DEFAULT FALSE,
   card_last5 VARCHAR(8) NOT NULL,
+  card_label VARCHAR(191),
   source VARCHAR(32) DEFAULT 'amex',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id, card_last5, user_id),

@@ -22,10 +22,21 @@
       return matchValue[1];
     }
 
+    function extractCardLabel(label) {
+      if (!label) return "";
+      return String(label).replace(/\s*-\s*\d+.*$/, "").trim();
+    }
+
     function getSelectedCardLast4() {
       const el = pageWindow.document?.querySelector("#cds-dropdown .cds-dd2-text-nowrap");
       const label = el?.textContent || "";
       return extractLast4(label);
+    }
+
+    function getSelectedCardLabel() {
+      const el = pageWindow.document?.querySelector("#cds-dropdown .cds-dd2-text-nowrap");
+      const label = el?.textContent || "";
+      return extractCardLabel(label);
     }
 
     function getPrimaryCardLast4(payload) {
@@ -33,6 +44,13 @@
       const primary = cards[0];
       if (!primary) return "";
       return extractLast4(primary.displayProductName || "");
+    }
+
+    function getPrimaryCardLabel(payload) {
+      const cards = Array.isArray(payload?.cardArtDetails) ? payload.cardArtDetails : [];
+      const primary = cards[0];
+      if (!primary) return "";
+      return extractCardLabel(primary.displayProductName || "");
     }
 
     function isAutoSendEnabled() {
@@ -109,12 +127,15 @@
       if (!groups.length) return [];
       const selectedLast4 = getSelectedCardLast4();
       const primaryLast4 = getPrimaryCardLast4(payload);
+      const selectedLabel = getSelectedCardLabel();
+      const primaryLabel = getPrimaryCardLabel(payload);
       const offers = groups.flatMap(group => {
         const groupLast4 = getGroupCardLast4(group);
         const items = Array.isArray(group.offers) ? group.offers : [];
         return items.map(offer => ({
           offer,
-          cardLast5: getOfferCardLast4(offer) || groupLast4 || selectedLast4 || primaryLast4
+          cardLast5: getOfferCardLast4(offer) || groupLast4 || selectedLast4 || primaryLast4,
+          cardLabel: selectedLabel || primaryLabel
         }));
       });
       if (!offers.length) return [];
@@ -131,7 +152,8 @@
           collectedAt: utils.nowIso ? utils.nowIso() : new Date().toISOString(),
           image: entry.offer.merchantImageURL || entry.offer.merchantBannerImageUrl || "",
           channels: parseChannels(entry.offer.redemptionType),
-          cardLast5: entry.cardLast5
+          cardLast5: entry.cardLast5,
+          cardLabel: entry.cardLabel
         }))
         .filter(item => item.id && item.expires);
     }
@@ -268,6 +290,8 @@
       needsManualFetch: !isAutoSendEnabled(),
       match,
       getCardLabel() {
+        const cardLabel = getSelectedCardLabel();
+        if (cardLabel) return cardLabel;
         const last4 = getSelectedCardLast4();
         return last4 ? `Card ${last4}` : "";
       },

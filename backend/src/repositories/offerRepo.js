@@ -54,14 +54,15 @@ export function createOfferRepo(db) {
   return {
     async listCards(userId) {
       const rows = await db("offers")
-        .distinct("card_last5", "source")
+        .distinct("card_last5", "source", "card_label")
         .where("user_id", userId)
         .whereNotNull("card_last5")
         .whereNot("card_last5", "")
         .orderBy("card_last5");
       return rows.map(row => ({
         cardLast5: row.card_last5,
-        source: row.source || ""
+        source: row.source || "",
+        cardLabel: row.card_label || ""
       }));
     },
     async listSources(userId) {
@@ -109,7 +110,8 @@ export function createOfferRepo(db) {
           "channels",
           "enrolled",
           "source",
-          "card_last5"
+          "card_last5",
+          "card_label"
         )
         .whereIn("id", ids)
         .orderByRaw(
@@ -134,7 +136,8 @@ export function createOfferRepo(db) {
         channels: JSON.stringify(offer.channels || []),
         enrolled: !!offer.enrolled,
         source: offer.source || offer.bank || "amex",
-        card_last5: offer.cardLast5 || offer.card_last5 || ""
+        card_last5: offer.cardLast5 || offer.card_last5 || "",
+        card_label: offer.cardLabel || offer.card_label || ""
       }));
       await db("offers")
         .insert(rows)
@@ -147,7 +150,8 @@ export function createOfferRepo(db) {
           categories: db.raw("VALUES(categories)"),
           channels: db.raw("VALUES(channels)"),
           enrolled: db.raw("VALUES(enrolled)"),
-          source: db.raw("VALUES(source)")
+          source: db.raw("VALUES(source)"),
+          card_label: db.raw("VALUES(card_label)")
         });
       return rows.length;
     },

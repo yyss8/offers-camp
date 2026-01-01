@@ -262,12 +262,19 @@ export default function App() {
     offers.forEach(offer => {
       const id = offer.id;
       if (!id) return;
+      const cardLabel = (offer.card_label || offer.cardLabel || "").trim();
       const existing = grouped.get(id);
       if (!existing) {
         grouped.set(id, {
           ...offer,
           cards: offer.card_last5
-            ? [{ last5: offer.card_last5, enrolled: !!offer.enrolled }]
+            ? [
+                {
+                  last5: offer.card_last5,
+                  enrolled: !!offer.enrolled,
+                  label: cardLabel
+                }
+              ]
             : []
         });
         return;
@@ -275,7 +282,15 @@ export default function App() {
       if (offer.card_last5) {
         const already = existing.cards.find(card => card.last5 === offer.card_last5);
         if (!already) {
-          existing.cards.push({ last5: offer.card_last5, enrolled: !!offer.enrolled });
+          existing.cards.push({
+            last5: offer.card_last5,
+            enrolled: !!offer.enrolled,
+            label: cardLabel
+          });
+          return;
+        }
+        if (!already.label && cardLabel) {
+          already.label = cardLabel;
         }
       }
     });

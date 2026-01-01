@@ -33,6 +33,17 @@
       return matchValue ? matchValue[1] : extractLast4(label);
     }
 
+    function getSelectedCardLabel() {
+      const host = pageWindow.document?.querySelector("#select-credit-card-account");
+      const root = host && host.shadowRoot ? host.shadowRoot : null;
+      const el = root
+        ? root.querySelector("#select-select-credit-card-account span")
+        : pageWindow.document?.querySelector("#select-select-credit-card-account span");
+      const label = (el?.textContent || "").trim();
+      if (!label) return "";
+      return label.replace(/\s*\(\.\.\.\d{4}\)\s*/g, "").trim();
+    }
+
     function isAutoSendEnabled() {
       if (!settingsStore || typeof settingsStore.get !== "function") return true;
       const current = settingsStore.get();
@@ -104,12 +115,14 @@
     function normalizeOffers(payload) {
       const groups = Array.isArray(payload?.customerOffers) ? payload.customerOffers : [];
       const selectedLast4 = getSelectedCardLast4();
+      const selectedLabel = getSelectedCardLabel();
       const offers = groups.flatMap(group => {
         const groupLast4 = getGroupCardLast4(group);
         const items = Array.isArray(group.offers) ? group.offers : [];
         return items.map(offer => ({
           offer,
-          cardLast5: getOfferCardLast4(offer) || groupLast4 || selectedLast4
+          cardLast5: getOfferCardLast4(offer) || groupLast4 || selectedLast4,
+          cardLabel: selectedLabel
         }));
       });
       if (!offers.length) return [];
@@ -142,7 +155,8 @@
                 .map(item => item.locationName)
                 .filter(Boolean)
             : [],
-          cardLast5: entry.cardLast5
+          cardLast5: entry.cardLast5,
+          cardLabel: entry.cardLabel
         }))
         .filter(item => item.id && item.expires);
     }
@@ -385,6 +399,8 @@
       needsManualFetch: !isAutoSendEnabled(),
       match,
       getCardLabel() {
+        const cardLabel = getSelectedCardLabel();
+        if (cardLabel) return cardLabel;
         const last4 = getSelectedCardLast4();
         return last4 ? `Card ${last4}` : "";
       },

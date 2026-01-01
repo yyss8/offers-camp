@@ -30,6 +30,14 @@
       return digits.slice(-5);
     }
 
+    function getCardLabelFromAria() {
+      const el = pageWindow.document?.querySelector(".simple-switcher-display-option[aria-label]");
+      const label = (el?.getAttribute("aria-label") || "").trim();
+      if (!label) return "";
+      const match = label.match(/^(.+?)(?:\s+ending\s+in\b|\s*\(|\s*-\s*\d|$)/i);
+      return match ? match[1].trim() : label;
+    }
+
     function getAccountNumberProxyFromLink() {
       const doc = pageWindow.document;
       if (!doc) return "";
@@ -56,6 +64,7 @@
       const flattened = sources.filter(Array.isArray).flat();
       if (!flattened.length) return [];
       const cardLast5 = getCardLast5();
+      const cardLabel = getCardLabelFromAria();
 
       return flattened
         .map(o => ({
@@ -70,7 +79,8 @@
           collectedAt: utils.nowIso ? utils.nowIso() : new Date().toISOString(),
           image: o.image,
           channels: (o.applicableFilters || []).map(f => f.optionType),
-          cardLast5
+          cardLast5,
+          cardLabel
         }))
         .filter(o => o.id && o.expires);
     }
@@ -228,6 +238,8 @@
       needsManualFetch: !isAutoSendEnabled(),
       match,
       getCardLabel() {
+        const cardLabel = getCardLabelFromAria();
+        if (cardLabel) return cardLabel;
         const last5 = getCardLast5();
         return last5 ? `Card ${last5}` : "";
       },

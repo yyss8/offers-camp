@@ -97,18 +97,25 @@ export default function OffersGrid({
             </div>
             {offer.cards && offer.cards.length > 0 ? (
               <div className="flex flex-wrap gap-2 pt-1">
-                {offer.cards.map(card => (
-                  <span
-                    className={`rounded-full border px-2 py-1 text-[11px] font-medium ${
-                      card.enrolled
-                        ? "border-emerald-600 bg-emerald-600 text-white"
-                        : "border-stone-200 bg-white text-stone-600"
-                    }`}
-                    key={`card-${offer.id}-${card.last5}`}
-                  >
-                    Card {card.last5}
-                  </span>
-                ))}
+                {offer.cards.map(card => {
+                  const cardLabel = (card.label || "").trim();
+                  const tooltip = cardLabel
+                    ? `${cardLabel} - ${card.last5}`
+                    : `Card ${card.last5}`;
+                  return (
+                    <span
+                      className={`cursor-help rounded-full border px-2 py-1 text-[11px] font-medium ${
+                        card.enrolled
+                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          : "border-stone-200 bg-white text-stone-600"
+                      }`}
+                      key={`card-${offer.id}-${card.last5}`}
+                      title={tooltip}
+                    >
+                      Card {card.last5}
+                    </span>
+                  );
+                })}
               </div>
             ) : null}
           </article>
