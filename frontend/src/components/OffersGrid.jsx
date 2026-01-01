@@ -100,8 +100,8 @@ export default function OffersGrid({
                 {offer.cards.map(card => {
                   const cardLabel = (card.label || "").trim();
                   const tooltip = cardLabel
-                    ? `${cardLabel} - ${card.last5}`
-                    : `Card ${card.last5}`;
+                    ? `${cardLabel} - ${card.cardNum}`
+                    : `Card ${card.cardNum}`;
                   return (
                     <span
                       className={`cursor-help rounded-full border px-2 py-1 text-[11px] font-medium ${
@@ -109,10 +109,10 @@ export default function OffersGrid({
                           ? "border-emerald-600 bg-emerald-600 text-white"
                           : "border-stone-200 bg-white text-stone-600"
                       }`}
-                      key={`card-${offer.id}-${card.last5}`}
+                      key={`card-${offer.id}-${card.cardNum}`}
                       title={tooltip}
                     >
-                      Card {card.last5}
+                      Card {card.cardNum}
                     </span>
                   );
                 })}

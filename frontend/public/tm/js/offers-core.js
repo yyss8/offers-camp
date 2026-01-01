@@ -389,13 +389,13 @@
     if (!offers.length) return;
     let added = 0;
     offers.forEach(offer => {
-      const cardKey = `${providerId}:${offer.cardLast5 || ""}`;
+      const cardKey = `${providerId}:${offer.cardNum || ""}`;
       let cardMap = state.pending.get(cardKey);
       if (!cardMap) {
         cardMap = new Map();
         state.pending.set(cardKey, cardMap);
       }
-      const offerKey = `${providerId}:${offer.id}:${offer.cardLast5 || ""}`;
+      const offerKey = `${providerId}:${offer.id}:${offer.cardNum || ""}`;
       if (cardMap.has(offerKey)) return;
       cardMap.set(offerKey, offer);
       added += 1;

@@ -22,7 +22,7 @@
       return location.hash.includes("/merchantOffers/offer-hub");
     }
 
-    function getSelectedCardLast4() {
+    function getSelectedCardNum() {
       const host = pageWindow.document?.querySelector("#select-credit-card-account");
       const root = host && host.shadowRoot ? host.shadowRoot : null;
       const el = root
@@ -30,7 +30,7 @@
         : pageWindow.document?.querySelector("#select-select-credit-card-account span");
       const label = el?.textContent || "";
       const matchValue = label.match(/\(\.\.\.(\d{4})\)/);
-      return matchValue ? matchValue[1] : extractLast4(label);
+      return matchValue ? matchValue[1] : extractCardNum(label);
     }
 
     function getSelectedCardLabel() {
@@ -50,7 +50,7 @@
       return current.autoSend !== false;
     }
 
-    function extractLast4(value) {
+    function extractCardNum(value) {
       if (!value) return "";
       if (utils.extractLastDigits) {
         return utils.extractLastDigits(String(value), 4);
@@ -60,7 +60,7 @@
       return digits.slice(-4);
     }
 
-    function getGroupCardLast4(group) {
+    function getGroupCardNum(group) {
       if (!group) return "";
       const candidates = [
         group.accountNumberSuffix,
@@ -74,13 +74,13 @@
         group.accountId
       ];
       for (const value of candidates) {
-        const last4 = extractLast4(value);
-        if (last4) return last4;
+        const cardNum = extractCardNum(value);
+        if (cardNum) return cardNum;
       }
       return "";
     }
 
-    function getOfferCardLast4(offer) {
+    function getOfferCardNum(offer) {
       if (!offer) return "";
       const candidates = [
         offer.accountNumberSuffix,
@@ -93,8 +93,8 @@
         offer.accountNumber
       ];
       for (const value of candidates) {
-        const last4 = extractLast4(value);
-        if (last4) return last4;
+        const cardNum = extractCardNum(value);
+        if (cardNum) return cardNum;
       }
       return "";
     }
@@ -114,14 +114,14 @@
 
     function normalizeOffers(payload) {
       const groups = Array.isArray(payload?.customerOffers) ? payload.customerOffers : [];
-      const selectedLast4 = getSelectedCardLast4();
+      const selectedCardNum = getSelectedCardNum();
       const selectedLabel = getSelectedCardLabel();
       const offers = groups.flatMap(group => {
-        const groupLast4 = getGroupCardLast4(group);
+        const groupCardNum = getGroupCardNum(group);
         const items = Array.isArray(group.offers) ? group.offers : [];
         return items.map(offer => ({
           offer,
-          cardLast5: getOfferCardLast4(offer) || groupLast4 || selectedLast4,
+          cardNum: getOfferCardNum(offer) || groupCardNum || selectedCardNum,
           cardLabel: selectedLabel
         }));
       });
@@ -155,7 +155,7 @@
                 .map(item => item.locationName)
                 .filter(Boolean)
             : [],
-          cardLast5: entry.cardLast5,
+          cardNum: entry.cardNum,
           cardLabel: entry.cardLabel
         }))
         .filter(item => item.id && item.expires);
@@ -270,44 +270,44 @@
       const normalized = normalizeOffers(payload);
       if (!normalized.length) return;
       if (source === "manual") {
-        const selectedLast4 = getSelectedCardLast4();
-        if (selectedLast4) {
+        const selectedCardNum = getSelectedCardNum();
+        if (selectedCardNum) {
           const filtered = normalized
             .filter(item => {
-              const itemLast4 = extractLast4(item.cardLast5);
-              return itemLast4 && itemLast4 === selectedLast4;
+              const itemCardNum = extractCardNum(item.cardNum);
+              return itemCardNum && itemCardNum === selectedCardNum;
             })
-            .map(item => ({ ...item, cardLast5: selectedLast4 }));
+            .map(item => ({ ...item, cardNum: selectedCardNum }));
           if (filtered.length) {
             pushOffers("chase", filtered);
             return;
           }
-          const forced = normalized.map(item => ({ ...item, cardLast5: selectedLast4 }));
+          const forced = normalized.map(item => ({ ...item, cardNum: selectedCardNum }));
           pushOffers("chase", forced);
           return;
         }
       }
-      if (!normalized.some(item => !item.cardLast5)) {
+      if (!normalized.some(item => !item.cardNum)) {
         pushOffers("chase", normalized);
         return;
       }
-      const waitForCard = utils.waitForValue || waitForCardLast4;
-      waitForCard(getSelectedCardLast4, cardLast5 => {
-        const filled = cardLast5
-          ? normalized.map(item => (item.cardLast5 ? item : { ...item, cardLast5 }))
+      const waitForCard = utils.waitForValue || waitForCardNum;
+      waitForCard(getSelectedCardNum, cardNum => {
+        const filled = cardNum
+          ? normalized.map(item => (item.cardNum ? item : { ...item, cardNum }))
           : normalized;
         pushOffers("chase", filled);
       });
     }
 
-    function waitForCardLast4(onReady, attempts = 10) {
-      const cardLast5 = getSelectedCardLast4();
-      if (cardLast5 || attempts <= 0) {
-        onReady(cardLast5);
+    function waitForCardNum(onReady, attempts = 10) {
+      const cardNum = getSelectedCardNum();
+      if (cardNum || attempts <= 0) {
+        onReady(cardNum);
         return;
       }
       pageWindow.setTimeout(() => {
-        waitForCardLast4(onReady, attempts - 1);
+        waitForCardNum(onReady, attempts - 1);
       }, 500);
     }
 
@@ -401,8 +401,8 @@
       getCardLabel() {
         const cardLabel = getSelectedCardLabel();
         if (cardLabel) return cardLabel;
-        const last4 = getSelectedCardLast4();
-        return last4 ? `Card ${last4}` : "";
+        const cardNum = getSelectedCardNum();
+        return cardNum ? `Card ${cardNum}` : "";
       },
       start(pushOffers) {
         installFetchHook(pushOffers);

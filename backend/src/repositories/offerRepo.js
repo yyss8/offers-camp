@@ -10,7 +10,7 @@ function buildQuery(db, userId, { query, card, source }) {
     );
   }
   if (card && card !== "all") {
-    base.andWhere("card_last5", card);
+    base.andWhere("card_num", card);
   }
   if (source && source !== "all") {
     base.andWhere("source", source);
@@ -54,13 +54,13 @@ export function createOfferRepo(db) {
   return {
     async listCards(userId) {
       const rows = await db("offers")
-        .distinct("card_last5", "source", "card_label")
+        .distinct("card_num", "source", "card_label")
         .where("user_id", userId)
-        .whereNotNull("card_last5")
-        .whereNot("card_last5", "")
-        .orderBy("card_last5");
+        .whereNotNull("card_num")
+        .whereNot("card_num", "")
+        .orderBy("card_num");
       return rows.map(row => ({
-        cardLast5: row.card_last5,
+        cardNum: row.card_num,
         source: row.source || "",
         cardLabel: row.card_label || ""
       }));
@@ -110,7 +110,7 @@ export function createOfferRepo(db) {
           "channels",
           "enrolled",
           "source",
-          "card_last5",
+          "card_num",
           "card_label"
         )
         .whereIn("id", ids)
@@ -136,12 +136,12 @@ export function createOfferRepo(db) {
         channels: JSON.stringify(offer.channels || []),
         enrolled: !!offer.enrolled,
         source: offer.source || offer.bank || "amex",
-        card_last5: offer.cardLast5 || offer.card_last5 || "",
+        card_num: offer.cardNum || offer.card_num || "",
         card_label: offer.cardLabel || offer.card_label || ""
       }));
       await db("offers")
         .insert(rows)
-        .onConflict(["id", "card_last5", "user_id"])
+        .onConflict(["id", "card_num", "user_id"])
         .merge({
           title: db.raw("VALUES(title)"),
           summary: db.raw("VALUES(summary)"),
@@ -157,11 +157,11 @@ export function createOfferRepo(db) {
     },
     async deleteMissingByCard(userId, card, ids) {
       if (!ids.length) {
-        await db("offers").where({ user_id: userId, card_last5: card }).del();
+        await db("offers").where({ user_id: userId, card_num: card }).del();
         return;
       }
       await db("offers")
-        .where({ user_id: userId, card_last5: card })
+        .where({ user_id: userId, card_num: card })
         .whereNotIn("id", ids)
         .del();
     }

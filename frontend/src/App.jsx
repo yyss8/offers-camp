@@ -267,10 +267,10 @@ export default function App() {
       if (!existing) {
         grouped.set(id, {
           ...offer,
-          cards: offer.card_last5
+          cards: offer.card_num
             ? [
                 {
-                  last5: offer.card_last5,
+                  cardNum: offer.card_num,
                   enrolled: !!offer.enrolled,
                   label: cardLabel
                 }
@@ -279,11 +279,11 @@ export default function App() {
         });
         return;
       }
-      if (offer.card_last5) {
-        const already = existing.cards.find(card => card.last5 === offer.card_last5);
+      if (offer.card_num) {
+        const already = existing.cards.find(card => card.cardNum === offer.card_num);
         if (!already) {
           existing.cards.push({
-            last5: offer.card_last5,
+            cardNum: offer.card_num,
             enrolled: !!offer.enrolled,
             label: cardLabel
           });

@@ -265,7 +265,7 @@ app.post("/offers", requireAuthOrLocal, async (req, res, next) => {
     const count = await req.offerRepo.upsertOffers(req.user.id, offers);
     const cardsToIds = new Map();
     offers.forEach(offer => {
-      const card = offer.cardLast5 || offer.card_last5 || "";
+      const card = offer.cardNum || offer.card_num || "";
       if (!card) return;
       const list = cardsToIds.get(card) || [];
       list.push(offer.id);

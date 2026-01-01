@@ -15,7 +15,7 @@
       );
     }
 
-    function extractLast4(label) {
+    function extractCardNum(label) {
       if (!label) return "";
       const matchValue = String(label).match(/-\s*(\d+)/);
       if (!matchValue) return "";
@@ -27,10 +27,10 @@
       return String(label).replace(/\s*-\s*\d+.*$/, "").trim();
     }
 
-    function getSelectedCardLast4() {
+    function getSelectedCardNum() {
       const el = pageWindow.document?.querySelector("#cds-dropdown .cds-dd2-text-nowrap");
       const label = el?.textContent || "";
-      return extractLast4(label);
+      return extractCardNum(label);
     }
 
     function getSelectedCardLabel() {
@@ -39,11 +39,11 @@
       return extractCardLabel(label);
     }
 
-    function getPrimaryCardLast4(payload) {
+    function getPrimaryCardNum(payload) {
       const cards = Array.isArray(payload?.cardArtDetails) ? payload.cardArtDetails : [];
       const primary = cards[0];
       if (!primary) return "";
-      return extractLast4(primary.displayProductName || "");
+      return extractCardNum(primary.displayProductName || "");
     }
 
     function getPrimaryCardLabel(payload) {
@@ -59,7 +59,7 @@
       return current.autoSend !== false;
     }
 
-    function getGroupCardLast4(group) {
+    function getGroupCardNum(group) {
       if (!group) return "";
       const candidates = [
         group.accountNumberSuffix,
@@ -72,13 +72,13 @@
         group.accountId
       ];
       for (const value of candidates) {
-        const last4 = extractLast4(value);
-        if (last4) return last4;
+        const cardNum = extractCardNum(value);
+        if (cardNum) return cardNum;
       }
       return "";
     }
 
-    function getOfferCardLast4(offer) {
+    function getOfferCardNum(offer) {
       if (!offer) return "";
       const candidates = [
         offer.accountNumberSuffix,
@@ -92,8 +92,8 @@
         offer.accountId
       ];
       for (const value of candidates) {
-        const last4 = extractLast4(value);
-        if (last4) return last4;
+        const cardNum = extractCardNum(value);
+        if (cardNum) return cardNum;
       }
       return "";
     }
@@ -125,16 +125,16 @@
     function normalizeOffers(payload) {
       const groups = Array.isArray(payload?.merchantOffers) ? payload.merchantOffers : [];
       if (!groups.length) return [];
-      const selectedLast4 = getSelectedCardLast4();
-      const primaryLast4 = getPrimaryCardLast4(payload);
+      const selectedCardNum = getSelectedCardNum();
+      const primaryCardNum = getPrimaryCardNum(payload);
       const selectedLabel = getSelectedCardLabel();
       const primaryLabel = getPrimaryCardLabel(payload);
       const offers = groups.flatMap(group => {
-        const groupLast4 = getGroupCardLast4(group);
+        const groupCardNum = getGroupCardNum(group);
         const items = Array.isArray(group.offers) ? group.offers : [];
         return items.map(offer => ({
           offer,
-          cardLast5: getOfferCardLast4(offer) || groupLast4 || selectedLast4 || primaryLast4,
+          cardNum: getOfferCardNum(offer) || groupCardNum || selectedCardNum || primaryCardNum,
           cardLabel: selectedLabel || primaryLabel
         }));
       });
@@ -152,7 +152,7 @@
           collectedAt: utils.nowIso ? utils.nowIso() : new Date().toISOString(),
           image: entry.offer.merchantImageURL || entry.offer.merchantBannerImageUrl || "",
           channels: parseChannels(entry.offer.redemptionType),
-          cardLast5: entry.cardLast5,
+          cardNum: entry.cardNum,
           cardLabel: entry.cardLabel
         }))
         .filter(item => item.id && item.expires);
@@ -189,11 +189,11 @@
       const normalized = normalizeOffers(payload);
       if (!normalized.length) return;
       if (source === "manual") {
-        const selectedLast4 = getSelectedCardLast4();
-        if (selectedLast4) {
+        const selectedCardNum = getSelectedCardNum();
+        if (selectedCardNum) {
           const filtered = normalized
-            .filter(item => !item.cardLast5 || item.cardLast5 === selectedLast4)
-            .map(item => (item.cardLast5 ? item : { ...item, cardLast5: selectedLast4 }));
+            .filter(item => !item.cardNum || item.cardNum === selectedCardNum)
+            .map(item => (item.cardNum ? item : { ...item, cardNum: selectedCardNum }));
           if (!filtered.length) return;
           pushOffers("citi", filtered);
           return;
@@ -292,8 +292,8 @@
       getCardLabel() {
         const cardLabel = getSelectedCardLabel();
         if (cardLabel) return cardLabel;
-        const last4 = getSelectedCardLast4();
-        return last4 ? `Card ${last4}` : "";
+        const cardNum = getSelectedCardNum();
+        return cardNum ? `Card ${cardNum}` : "";
       },
       start(pushOffers) {
         installFetchHook(pushOffers);

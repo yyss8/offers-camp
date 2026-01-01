@@ -19,7 +19,7 @@
       return current.autoSend !== false;
     }
 
-    function getCardLast5() {
+    function getCardNum() {
       const el = pageWindow.document?.querySelector(".simple-switcher-display-option[aria-label]");
       const label = el?.getAttribute("aria-label") || "";
       if (utils.extractLastDigits) {
@@ -63,7 +63,7 @@
 
       const flattened = sources.filter(Array.isArray).flat();
       if (!flattened.length) return [];
-      const cardLast5 = getCardLast5();
+      const cardNum = getCardNum();
       const cardLabel = getCardLabelFromAria();
 
       return flattened
@@ -79,7 +79,7 @@
           collectedAt: utils.nowIso ? utils.nowIso() : new Date().toISOString(),
           image: o.image,
           channels: (o.applicableFilters || []).map(f => f.optionType),
-          cardLast5,
+          cardNum,
           cardLabel
         }))
         .filter(o => o.id && o.expires);
@@ -240,8 +240,8 @@
       getCardLabel() {
         const cardLabel = getCardLabelFromAria();
         if (cardLabel) return cardLabel;
-        const last5 = getCardLast5();
-        return last5 ? `Card ${last5}` : "";
+        const cardNum = getCardNum();
+        return cardNum ? `Card ${cardNum}` : "";
       },
       start(pushOffers) {
         const ensureHooksInstalled = () => {

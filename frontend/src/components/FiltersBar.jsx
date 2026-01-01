@@ -33,7 +33,7 @@ export default function FiltersBar({
       >
         <option value="all">All cards</option>
         {cardOptions.map(card => {
-          const value = card?.cardLast5 || "";
+          const value = card?.cardNum || "";
           const source = card?.source || "";
           const cardLabel = (card?.cardLabel || card?.card_label || "").trim();
           const labelSource = source

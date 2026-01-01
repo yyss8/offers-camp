@@ -12,11 +12,11 @@ CREATE TABLE IF NOT EXISTS offers_camp.offers (
   categories JSON,
   channels JSON,
   enrolled BOOLEAN DEFAULT FALSE,
-  card_last5 VARCHAR(8) NOT NULL,
+  card_num VARCHAR(8) NOT NULL,
   card_label VARCHAR(191),
   source VARCHAR(32) DEFAULT 'amex',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id, card_last5, user_id),
+  PRIMARY KEY (id, card_num, user_id),
   KEY offers_user_id_idx (user_id)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
