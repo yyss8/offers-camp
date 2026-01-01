@@ -116,6 +116,7 @@
     authInitialized = true;
     auth.init({
       loginUrl: LOGIN_URL,
+      tokenUrl: `${getApiBase()}/auth/token`,
       verifyUrl: getVerifyUrl(),
       onStatus: setStatus,
       onAuthChange: () => {
