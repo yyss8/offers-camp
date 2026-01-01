@@ -18,10 +18,14 @@
       return { ...DEFAULT_SETTINGS };
     }
     const raw = GM_getValue(STORAGE_KEY, "");
-    if (!raw) return { ...DEFAULT_SETTINGS };
+    if (!raw) {
+      const defaults = { ...DEFAULT_SETTINGS };
+      saveSettings(defaults);
+      return defaults;
+    }
     try {
       const parsed = JSON.parse(raw);
-      return {
+      const merged = {
         ...DEFAULT_SETTINGS,
         ...parsed,
         providers: {
@@ -29,8 +33,22 @@
           ...(parsed.providers || {})
         }
       };
+      const needsSave =
+        typeof parsed.autoSend !== "boolean" ||
+        typeof parsed.useCloud !== "boolean" ||
+        !parsed.localApiBase ||
+        !parsed.providers ||
+        typeof parsed.providers.amex !== "boolean" ||
+        typeof parsed.providers.chase !== "boolean" ||
+        typeof parsed.providers.citi !== "boolean";
+      if (needsSave) {
+        saveSettings(merged);
+      }
+      return merged;
     } catch (_) {
-      return { ...DEFAULT_SETTINGS };
+      const defaults = { ...DEFAULT_SETTINGS };
+      saveSettings(defaults);
+      return defaults;
     }
   }
 
@@ -137,6 +155,7 @@
       const current = OffersCamp.settings.get();
       const provider = current.providers || {};
       const useCloud = current.useCloud !== false;
+      const loggedIn = auth.isLoggedIn();
       localDraft = current.localApiBase || localDraft || DEFAULT_LOCAL_API;
       root.innerHTML = `
         <div class="cc-settings-overlay">
@@ -176,8 +195,8 @@
                     <div class="cc-settings__meta">${username ? `Signed in as <strong>${username}</strong>` : "No active session"}</div>
                   </div>
                   <div class="cc-settings__actions">
-                    <button class="cc-settings__btn" data-login>${auth.isLoggedIn() ? "Open Offers Camp" : "Login"}</button>
-                    <button class="cc-settings__btn cc-settings__btn--ghost" data-logout>Logout</button>
+                    <button class="cc-settings__btn" data-login>${loggedIn ? "Open Offers Camp" : "Login"}</button>
+                    ${loggedIn ? `<button class="cc-settings__btn cc-settings__btn--ghost" data-logout>Logout</button>` : ""}
                   </div>
                 </div>
               </div>
