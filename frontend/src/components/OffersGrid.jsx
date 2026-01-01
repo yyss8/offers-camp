@@ -44,7 +44,7 @@ export default function OffersGrid({
         {shouldCollapse ? (
           <button
             type="button"
-            className="rounded-full border border-stone-200 bg-white px-2 py-1 text-[11px] font-semibold text-stone-600 transition hover:border-stone-300 hover:text-stone-900"
+            className="rounded-full border border-stone-900 bg-stone-900 px-2 py-1 text-[11px] font-semibold text-white transition hover:border-stone-800 hover:bg-stone-800"
             onClick={() => setExpanded(value => !value)}
           >
             {expanded ? "Show less" : "Show all"}
