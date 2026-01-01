@@ -3,9 +3,9 @@
 // @namespace    https://offers.camp
 // @version      0.01
 // @description  Offers Camp unified offers collector shell
+// @match        https://global.americanexpress.com/dashboard*
 // @match        https://global.americanexpress.com/offers*
 // @match        https://online.citi.com/US/ag/*
-// @match        https://online.citi.com/US/ag/products-offers/merchantoffers*
 // @match        https://secure.chase.com/web/auth/dashboard*
 // @run-at       document-start
 // @require      http://localhost:5173/tm/js/offers-config.js?v=0.01

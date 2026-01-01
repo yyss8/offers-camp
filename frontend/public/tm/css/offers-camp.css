@@ -225,6 +225,41 @@
   cursor: pointer;
 }
 
+.cc-offers-redirect {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2147483647;
+  background: #111827;
+  color: #f9fafb;
+  border: 1px solid #1f2937;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font: 12px/1.4 Arial, sans-serif;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cc-offers-redirect__title {
+  font-weight: 600;
+}
+
+.cc-offers-redirect__btn {
+  border: 1px solid #4b5563;
+  background: transparent;
+  color: #f9fafb;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.cc-offers-redirect__btn:hover {
+  border-color: #9ca3af;
+}
+
 .cc-settings {
   min-height: 100vh;
   background: linear-gradient(135deg, #fef3c7, #ffedd5, #ffe4e6);

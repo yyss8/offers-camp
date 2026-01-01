@@ -5,6 +5,7 @@
 // @description  Offers Camp unified offers collector shell
 // @downloadURL  https://tm.offers.camp/offers-camp.user.js
 // @updateURL    https://tm.offers.camp/offers-camp.user.js
+// @match        https://global.americanexpress.com/dashboard*
 // @match        https://global.americanexpress.com/offers*
 // @match        https://online.citi.com/US/ag/*
 // @match        https://secure.chase.com/web/auth/dashboard*

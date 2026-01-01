@@ -12,6 +12,27 @@
   const SEND_BUTTON_LABEL = "Send now";
   const SEND_BUTTON_LOADING_LABEL = "Sending...";
   const AUTH_DISABLED_STATUS = "Ready";
+  const REDIRECT_ROUTES = [
+    {
+      id: "amex",
+      origin: "https://global.americanexpress.com",
+      path: "/dashboard",
+      offersUrl: "https://global.americanexpress.com/offers"
+    },
+    {
+      id: "chase",
+      origin: "https://secure.chase.com",
+      path: "/web/auth/dashboard",
+      hashPrefix: "#/dashboard/overview",
+      offersUrl: "https://secure.chase.com/web/auth/dashboard#/dashboard/merchantOffers/offer-hub"
+    },
+    {
+      id: "citi",
+      origin: "https://online.citi.com",
+      path: "/US/ag/dashboard/summary",
+      offersUrl: "https://online.citi.com/US/ag/products-offers/merchantoffers"
+    }
+  ];
 
   const state = {
     activeProvider: null,
@@ -201,6 +222,8 @@
   let panelVisible = false;
   let toast = null;
   let toastTimer = null;
+  let redirectPopup = null;
+  let redirectVisible = false;
 
   function fadeOutPanel() {
     if (!panel || !panelVisible) return;
@@ -222,6 +245,45 @@
       toggleBtn = null;
       collapseBtn = null;
     }, 700);
+  }
+
+  function getRedirectRoute() {
+    const { origin, pathname, hash } = window.location;
+    return REDIRECT_ROUTES.find(route => {
+      if (route.origin !== origin) return false;
+      if (route.path !== pathname) return false;
+      if (route.hashPrefix && !hash.startsWith(route.hashPrefix)) return false;
+      return true;
+    });
+  }
+
+  function removeRedirectPopup() {
+    if (!redirectPopup) return;
+    redirectPopup.remove();
+    redirectPopup = null;
+    redirectVisible = false;
+  }
+
+  function ensureRedirectPopup() {
+    const route = getRedirectRoute();
+    if (!route) {
+      removeRedirectPopup();
+      return;
+    }
+    if (redirectVisible) return;
+    const popup = document.createElement("div");
+    popup.className = "cc-offers-redirect";
+    popup.innerHTML = `
+      <div class="cc-offers-redirect__title">Offers Camp</div>
+      <button class="cc-offers-redirect__btn" type="button">To Offers</button>
+    `;
+    const button = popup.querySelector(".cc-offers-redirect__btn");
+    button.addEventListener("click", () => {
+      window.location.href = route.offersUrl;
+    });
+    document.documentElement.appendChild(popup);
+    redirectPopup = popup;
+    redirectVisible = true;
   }
 
   function isProviderEnabled(providerId) {
@@ -599,6 +661,7 @@
     if (state.activeProvider) {
       return;
     }
+    ensureRedirectPopup();
     if (typeof GM_registerMenuCommand === "function") {
       GM_registerMenuCommand("Offers Camp Settings", () => {
         if (OffersCamp.settingsUI && typeof OffersCamp.settingsUI.open === "function") {
@@ -670,6 +733,7 @@
     if (state.routeWatcherInstalled) return;
     state.routeWatcherInstalled = true;
     const trigger = () => {
+      ensureRedirectPopup();
       if (state.activeProvider && !state.activeProvider.match()) {
         clearQueue();
         fadeOutPanel();
