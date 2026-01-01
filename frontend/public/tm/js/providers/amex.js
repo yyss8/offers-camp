@@ -4,12 +4,19 @@
 
   function createAmexProvider() {
     const pageWindow = typeof unsafeWindow !== "undefined" ? unsafeWindow : window;
+    const settingsStore = OffersCamp.settings;
 
     function match() {
       return (
         location.host.includes("americanexpress.com") &&
         location.pathname.includes("/offers")
       );
+    }
+
+    function isAutoSendEnabled() {
+      if (!settingsStore || typeof settingsStore.get !== "function") return true;
+      const current = settingsStore.get();
+      return current.autoSend !== false;
     }
 
     function getCardLast5() {
@@ -68,7 +75,10 @@
         .filter(o => o.id && o.expires);
     }
 
-    function handleOffers(data, pushOffers) {
+    let manualInFlight = false;
+
+    function handleOffers(data, pushOffers, source) {
+      if (provider.needsManualFetch && source !== "manual") return;
       const normalized = normalizeOffers(data);
       if (!normalized.length) return;
       pushOffers("amex", normalized);
@@ -80,7 +90,7 @@
           pageWindow,
           "__ccOffersAmexFetch",
           url => url.toLowerCase().includes("offer"),
-          data => handleOffers(data, pushOffers)
+          data => handleOffers(data, pushOffers, "hook")
         );
         return;
       }
@@ -94,7 +104,7 @@
         const fetchPromise = originalFetch.apply(this, args);
         fetchPromise.then(response => {
           if (!requestUrl.toLowerCase().includes("offer")) return;
-          response.clone().json().then(data => handleOffers(data, pushOffers)).catch(() => {});
+          response.clone().json().then(data => handleOffers(data, pushOffers, "hook")).catch(() => {});
         }).catch(() => {});
         return fetchPromise;
       };
@@ -107,7 +117,7 @@
           pageWindow,
           "__ccOffersAmexXhr",
           url => url && url.toLowerCase().includes("offer"),
-          data => handleOffers(data, pushOffers)
+          data => handleOffers(data, pushOffers, "hook")
         );
         return;
       }
@@ -126,10 +136,10 @@
           try {
             if (!xhr.responseType || xhr.responseType === "text") {
               if (!xhr.responseText) return;
-              handleOffers(JSON.parse(xhr.responseText), pushOffers);
+              handleOffers(JSON.parse(xhr.responseText), pushOffers, "hook");
             } else if (xhr.responseType === "json") {
               if (!xhr.response) return;
-              handleOffers(xhr.response, pushOffers);
+              handleOffers(xhr.response, pushOffers, "hook");
             }
           } catch (_) {}
         });
@@ -154,6 +164,7 @@
         requestType: "OFFERSHUB_LANDING",
         sortBy: "RECOMMENDED"
       };
+      manualInFlight = true;
       GM_xmlhttpRequest({
         method: "POST",
         url: "https://functions.americanexpress.com/ReadOffersHubPresentation.web.v1",
@@ -166,29 +177,87 @@
         onload: response => {
           try {
             if (response && response.responseText) {
-              handleOffers(JSON.parse(response.responseText), pushOffers);
+              handleOffers(JSON.parse(response.responseText), pushOffers, "manual");
             }
-          } catch (_) {}
+          } catch (_) {} finally {
+            manualInFlight = false;
+          }
+        },
+        onerror: () => {
+          manualInFlight = false;
         }
       });
     }
 
-    return {
+    function triggerManualFetchWhenRecommendedReady(pushOffers) {
+      const doc = pageWindow.document;
+      if (!doc || !pageWindow.MutationObserver) return;
+      const selector = '[data-testid="recommendedOffersContainer"]';
+      let triggered = false;
+      let observer;
+      let timeoutId;
+
+      const done = () => {
+        if (observer) observer.disconnect();
+        if (timeoutId) pageWindow.clearTimeout(timeoutId);
+      };
+
+      const trigger = () => {
+        if (triggered) return;
+        triggered = true;
+        manualFetch(pushOffers, () => {});
+        done();
+      };
+
+      if (doc.querySelector(selector)) {
+        trigger();
+        return;
+      }
+
+      observer = new pageWindow.MutationObserver(() => {
+        if (doc.querySelector(selector)) {
+          trigger();
+        }
+      });
+      observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true });
+      timeoutId = pageWindow.setTimeout(done, 20000);
+    }
+
+    const provider = {
       id: "amex",
-      needsManualFetch: true,
+      needsManualFetch: !isAutoSendEnabled(),
       match,
       getCardLabel() {
         const last5 = getCardLast5();
         return last5 ? `Card ${last5}` : "";
       },
       start(pushOffers) {
-        installFetchHook(pushOffers);
-        installXhrHook(pushOffers);
+        const ensureHooksInstalled = () => {
+          if (provider.hooksInstalled) return;
+          installFetchHook(pushOffers);
+          installXhrHook(pushOffers);
+          triggerManualFetchWhenRecommendedReady(pushOffers);
+          provider.hooksInstalled = true;
+        };
+        provider.needsManualFetch = !isAutoSendEnabled();
+        if (!provider.needsManualFetch) {
+          ensureHooksInstalled();
+        }
+        if (settingsStore && typeof settingsStore.onChange === "function") {
+          settingsStore.onChange(() => {
+            provider.needsManualFetch = !isAutoSendEnabled();
+            if (!provider.needsManualFetch) {
+              ensureHooksInstalled();
+            }
+          });
+        }
       },
       manualFetch(pushOffers, setStatus) {
         manualFetch(pushOffers, setStatus);
       }
     };
+
+    return provider;
   }
 
   if (typeof OffersCamp.registerProvider === "function") {
