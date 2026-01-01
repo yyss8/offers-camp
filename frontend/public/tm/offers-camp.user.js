@@ -27,6 +27,9 @@
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
 // @connect      localhost
+// @connect      127.0.0.1
+// @connect      offers.camp
+// @connect      api.offers.camp
 // @connect      functions.americanexpress.com
 // ==/UserScript==
 
