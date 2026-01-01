@@ -11,6 +11,8 @@
   const settingsStore = OffersCamp.settings;
   const SEND_BUTTON_LABEL = "Send now";
   const SEND_BUTTON_LOADING_LABEL = "Sending...";
+  const SEND_ALL_BUTTON_LABEL = "Send All";
+  const SEND_ALL_BUTTON_LOADING_LABEL = "Sending all...";
   const AUTH_DISABLED_STATUS = "Ready";
   const REDIRECT_ROUTES = [
     {
@@ -43,7 +45,9 @@
     sendGroups: new Map(),
     groupId: 0,
     forceSend: false,
+    sendAllActive: false,
     manualSending: false,
+    sendAllSending: false,
     manualSendTimer: null,
     providerStarted: false,
     stats: {
@@ -57,6 +61,7 @@
   let authInitialized = false;
   const panelHandlers = {
     onSend: null,
+    onSendAll: null,
     onLogin: null,
     onLogout: null,
     onSettings: null
@@ -198,6 +203,7 @@
       </div>
       <div class="cc-offers-panel__row cc-offers-panel__actions">
         <button class="cc-offers-panel__btn" data-send type="button">Send now</button>
+        <button class="cc-offers-panel__btn" data-send-all type="button">Send All</button>
         <button class="cc-offers-panel__btn" data-login type="button">Login</button>
         <button class="cc-offers-panel__btn" data-logout type="button">Logout</button>
         <button class="cc-offers-panel__btn" data-settings type="button">Settings</button>
@@ -213,6 +219,7 @@
   let cardsEl = null;
   let bankEl = null;
   let sendBtn = null;
+  let sendAllBtn = null;
   let loginBtn = null;
   let logoutBtn = null;
   let settingsBtn = null;
@@ -239,6 +246,7 @@
       cardsEl = null;
       bankEl = null;
       sendBtn = null;
+      sendAllBtn = null;
       loginBtn = null;
       logoutBtn = null;
       settingsBtn = null;
@@ -318,6 +326,11 @@
         if (panelHandlers.onSend) panelHandlers.onSend();
       };
     }
+    if (sendAllBtn) {
+      sendAllBtn.onclick = () => {
+        if (panelHandlers.onSendAll) panelHandlers.onSendAll();
+      };
+    }
     if (loginBtn) {
       loginBtn.onclick = () => {
         if (panelHandlers.onLogin) panelHandlers.onLogin();
@@ -354,6 +367,7 @@
     cardsEl = panel.querySelector("[data-cards]");
     bankEl = panel.querySelector("[data-bank]");
     sendBtn = panel.querySelector("[data-send]");
+    sendAllBtn = panel.querySelector("[data-send-all]");
     loginBtn = panel.querySelector("[data-login]");
     logoutBtn = panel.querySelector("[data-logout]");
     settingsBtn = panel.querySelector("[data-settings]");
@@ -367,6 +381,9 @@
     }
     if (sendBtn) {
       sendBtn.style.display = "none";
+    }
+    if (sendAllBtn) {
+      sendAllBtn.style.display = "none";
     }
     if (loginBtn) {
       loginBtn.style.display = "inline-flex";
@@ -399,6 +416,10 @@
     if (sendBtn) {
       sendBtn.style.display = loggedIn && allowManual ? "inline-flex" : "none";
     }
+    if (sendAllBtn) {
+      const supportsSendAll = Boolean(state.activeProvider && state.activeProvider.supportsSendAll);
+      sendAllBtn.style.display = loggedIn && allowManual && supportsSendAll ? "inline-flex" : "none";
+    }
     if (loginBtn) {
       loginBtn.style.display = isCloudEnabled() && !loggedIn ? "inline-flex" : "none";
     }
@@ -410,8 +431,14 @@
 
   function setSendButtonLoading(isLoading, labelOverride) {
     if (!sendBtn) return;
-    sendBtn.disabled = isLoading;
+    sendBtn.disabled = isLoading || state.sendAllSending;
     sendBtn.textContent = isLoading ? (labelOverride || SEND_BUTTON_LOADING_LABEL) : SEND_BUTTON_LABEL;
+  }
+
+  function setSendAllButtonLoading(isLoading) {
+    if (!sendAllBtn) return;
+    sendAllBtn.disabled = isLoading || state.manualSending;
+    sendAllBtn.textContent = isLoading ? SEND_ALL_BUTTON_LOADING_LABEL : SEND_ALL_BUTTON_LABEL;
   }
 
   function updateSendButtonState() {
@@ -421,9 +448,11 @@
       : !settings.autoSend;
     if (!allowManual) {
       setSendButtonLoading(false);
+      setSendAllButtonLoading(false);
       return;
     }
     setSendButtonLoading(state.manualSending);
+    setSendAllButtonLoading(state.sendAllSending);
   }
 
   function setManualSending(next) {
@@ -438,6 +467,11 @@
         updateSendButtonState();
       }, 10000);
     }
+    updateSendButtonState();
+  }
+
+  function setSendAllSending(next) {
+    state.sendAllSending = next;
     updateSendButtonState();
   }
 
@@ -502,7 +536,7 @@
       setManualSending(false);
       return;
     }
-    if (!settings.autoSend && !state.forceSend) {
+    if (!settings.autoSend && !state.forceSend && !state.sendAllActive) {
       ensurePanel();
       updateUI();
       updateAuthUI();
@@ -699,6 +733,7 @@
     panelHandlers.onSend = () => {
       if (!isProviderEnabled(provider.id)) return;
       if (state.manualSending) return;
+      if (state.sendAllSending) return;
       state.forceSend = true;
       setManualSending(true);
       provider.manualFetch(pushOffers, setStatus);
@@ -706,6 +741,21 @@
       if (settings.autoSend) {
         fadeOutPanel();
       }
+    };
+    panelHandlers.onSendAll = () => {
+      if (!isProviderEnabled(provider.id)) return;
+      if (state.sendAllSending) return;
+      if (!provider.sendAll) return;
+      state.sendAllActive = true;
+      setSendAllSending(true);
+      provider.sendAll(pushOffers, setStatus, result => {
+        state.sendAllActive = false;
+        setSendAllSending(false);
+        if (result && result.stopped) {
+          setStatus("Send all stopped");
+        }
+      });
+      setStatus("Sending all cards...");
     };
     panelHandlers.onLogin = () => {
       if (!isCloudEnabled() || !auth) return;

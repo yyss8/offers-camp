@@ -499,3 +499,64 @@
   color: #0f172a !important;
   border-color: #cbd5f5 !important;
 }
+
+.cc-offers-sendall {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483650;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.cc-offers-sendall__panel {
+  width: 100%;
+  max-width: 420px;
+  background: #111827;
+  color: #f9fafb;
+  border: 1px solid #1f2937;
+  border-radius: 16px;
+  padding: 20px 22px;
+  font: 12px/1.5 Arial, sans-serif;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cc-offers-sendall__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cc-offers-sendall__status {
+  color: #d1d5db;
+}
+
+.cc-offers-sendall__progress {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.cc-offers-sendall__progress-bar {
+  height: 100%;
+  background: #38bdf8;
+  width: 0%;
+  transition: width 0.2s ease;
+}
+
+.cc-offers-sendall__btn {
+  align-self: center;
+  border: 1px solid #4b5563;
+  background: transparent;
+  color: #f9fafb;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
