@@ -7,8 +7,8 @@
 // @updateURL    https://tm.offers.camp/offers-camp.user.js
 // @match        https://global.americanexpress.com/offers*
 // @match        https://online.citi.com/US/ag/*
-// @match        https://online.citi.com/US/ag/products-offers/merchantoffers*
 // @match        https://secure.chase.com/web/auth/dashboard*
+// @author       yyss8
 // @run-at       document-start
 // @require      https://tm.offers.camp/js/offers-config.js?v=0.01
 // @require      https://tm.offers.camp/js/offers-utils.js?v=0.01
