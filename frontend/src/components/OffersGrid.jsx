@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 import OfferDescription from "./OfferDescription";
 
@@ -10,6 +10,50 @@ export default function OffersGrid({
   isExpiringSoon,
   onViewDetails
 }) {
+  const MAX_VISIBLE_CARDS = 4;
+
+  const CardTagGroup = ({ cards, offerId }) => {
+    const [expanded, setExpanded] = useState(false);
+    const shouldCollapse = cards.length > MAX_VISIBLE_CARDS;
+    const visibleCards =
+      expanded || !shouldCollapse
+        ? cards
+        : cards.slice(0, MAX_VISIBLE_CARDS - 1);
+
+    return (
+      <div className="flex flex-wrap gap-2 pt-1">
+        {visibleCards.map(card => {
+          const cardLabel = (card.label || "").trim();
+          const tooltip = cardLabel
+            ? `${cardLabel} - ${card.cardNum}`
+            : `Card ${card.cardNum}`;
+          return (
+            <span
+              className={`cursor-help rounded-full border px-2 py-1 text-[11px] font-medium ${
+                card.enrolled
+                  ? "border-emerald-600 bg-emerald-600 text-white"
+                  : "border-stone-200 bg-white text-stone-600"
+              }`}
+              key={`card-${offerId}-${card.cardNum}`}
+              title={tooltip}
+            >
+              Card {card.cardNum}
+            </span>
+          );
+        })}
+        {shouldCollapse ? (
+          <button
+            type="button"
+            className="rounded-full border border-stone-200 bg-white px-2 py-1 text-[11px] font-semibold text-stone-600 transition hover:border-stone-300 hover:text-stone-900"
+            onClick={() => setExpanded(value => !value)}
+          >
+            {expanded ? "Show less" : "Show all"}
+          </button>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <div className="relative">
       {(loading || isFiltering) && (
@@ -96,27 +140,7 @@ export default function OffersGrid({
               ))}
             </div>
             {offer.cards && offer.cards.length > 0 ? (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {offer.cards.map(card => {
-                  const cardLabel = (card.label || "").trim();
-                  const tooltip = cardLabel
-                    ? `${cardLabel} - ${card.cardNum}`
-                    : `Card ${card.cardNum}`;
-                  return (
-                    <span
-                      className={`cursor-help rounded-full border px-2 py-1 text-[11px] font-medium ${
-                        card.enrolled
-                          ? "border-emerald-600 bg-emerald-600 text-white"
-                          : "border-stone-200 bg-white text-stone-600"
-                      }`}
-                      key={`card-${offer.id}-${card.cardNum}`}
-                      title={tooltip}
-                    >
-                      Card {card.cardNum}
-                    </span>
-                  );
-                })}
-              </div>
+              <CardTagGroup cards={offer.cards} offerId={offer.id} />
             ) : null}
           </article>
         ))}
