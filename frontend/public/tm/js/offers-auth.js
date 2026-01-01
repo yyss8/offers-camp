@@ -3,6 +3,7 @@
 
   const state = {
     token: "",
+    user: null,
     loginUrl: "",
     loginOrigin: "",
     verifyUrl: "",
@@ -31,6 +32,7 @@
   function validateToken(token) {
     return new Promise(resolve => {
       if (!token) {
+        state.user = null;
         resolve(false);
         return;
       }
@@ -41,10 +43,28 @@
           Authorization: `Bearer ${token}`
         },
         onload: response => {
-          resolve(response.status >= 200 && response.status < 300);
+          const ok = response.status >= 200 && response.status < 300;
+          if (!ok) {
+            state.user = null;
+            resolve(false);
+            return;
+          }
+          try {
+            const payload = response.responseText ? JSON.parse(response.responseText) : {};
+            state.user = payload && payload.user ? payload.user : null;
+          } catch (err) {
+            state.user = null;
+          }
+          resolve(true);
         },
-        onerror: () => resolve(false),
-        ontimeout: () => resolve(false)
+        onerror: () => {
+          state.user = null;
+          resolve(false);
+        },
+        ontimeout: () => {
+          state.user = null;
+          resolve(false);
+        }
       });
     });
   }
@@ -52,15 +72,26 @@
   async function setToken(token) {
     state.token = token;
     await saveStoredToken(token);
-    state.onAuthChange(Boolean(token));
-    state.listeners.forEach(fn => fn(Boolean(token)));
-    if (token) {
-      state.onTokenSaved(token);
+    if (!token) {
+      state.user = null;
+      state.onAuthChange(false);
+      state.listeners.forEach(fn => fn(false));
+      return;
     }
+    const valid = await validateToken(token);
+    if (!valid) {
+      await clearToken();
+      state.onStatus("Login required");
+      return;
+    }
+    state.onAuthChange(true);
+    state.listeners.forEach(fn => fn(true));
+    state.onTokenSaved(token);
   }
 
   async function clearToken() {
     state.token = "";
+    state.user = null;
     await saveStoredToken("");
     state.onAuthChange(false);
     state.listeners.forEach(fn => fn(false));
@@ -130,6 +161,12 @@
     },
     getToken() {
       return state.token;
+    },
+    getUser() {
+      return state.user;
+    },
+    getUserId() {
+      return state.user ? state.user.id : null;
     },
     isLoggedIn() {
       return Boolean(state.token);

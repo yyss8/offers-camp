@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+const IS_LOCAL_API =
+  API_BASE.includes("localhost") || API_BASE.includes("127.0.0.1");
 
 function OfferDescription({ html, source, onView }) {
   const contentRef = useRef(null);
@@ -453,6 +455,11 @@ export default function App() {
             <p className="mt-2 text-sm text-stone-600">
               Log in to access your offers dashboard.
             </p>
+            {IS_LOCAL_API ? (
+              <p className="mt-2 text-xs text-stone-500">
+                (Local server detected. Use username <b>1</b> and password <b>1</b>.)
+              </p>
+            ) : null}
             <form className="mt-6 flex flex-col gap-4" onSubmit={handleLogin}>
               <label className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
                 Username or email

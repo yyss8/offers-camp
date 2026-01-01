@@ -3,6 +3,8 @@
 
   const DEFAULT_SETTINGS = {
     autoSend: true,
+    useCloud: true,
+    localApiBase: "localhost:4000",
     providers: {
       amex: true,
       chase: true,
@@ -112,35 +114,74 @@
     });
   }
 
+  const DEFAULT_LOCAL_API = "localhost:4000";
+
+  function normalizeApiBase(value) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) return "";
+    const hasScheme = /^[a-zA-Z][a-zA-Z\\d+.-]*:\/\//.test(trimmed);
+    const base = hasScheme ? trimmed : `http://${trimmed}`;
+    return base.replace(/\/+$/, "");
+  }
+
   function renderSettings(auth, config) {
     const root = ensureRoot();
     const appBase = config.appBase || "http://localhost:5173";
     const apiBase = config.apiBase || "http://localhost:4000";
     let username = "";
+    let localDraft = settings.localApiBase || DEFAULT_LOCAL_API;
+    let localStatus = { text: "", tone: "" };
+    let localSaving = false;
 
     function render() {
       const current = OffersCamp.settings.get();
       const provider = current.providers || {};
+      const useCloud = current.useCloud !== false;
+      localDraft = current.localApiBase || localDraft || DEFAULT_LOCAL_API;
       root.innerHTML = `
         <div class="cc-settings-overlay">
           <div class="cc-settings">
             <div class="cc-settings__panel">
               <div class="cc-settings__header">
                 <div class="cc-settings__brand">Offers Camp</div>
-                <button class="cc-settings__btn cc-settings__btn--ghost" data-close type="button">Close</button>
+                <button class="cc-settings__btn cc-settings__btn--ghost" data-close type="button" aria-label="Close">X</button>
               </div>
             <div class="cc-settings__section">
               <div class="cc-settings__row">
-                <div>
-                  <div class="cc-settings__title">Account</div>
-                  <div class="cc-settings__meta">${username ? `Signed in as <strong>${username}</strong>` : "No active session"}</div>
+                <label class="cc-settings__toggle">
+                  <input type="checkbox" data-use-cloud ${useCloud ? "checked" : ""} />
+                  <span>Use cloud server</span>
+                </label>
+              </div>
+              ${useCloud ? "" : `
+                <div class="cc-settings__row cc-settings__row--stack">
+                  <div class="cc-settings__field">
+                    <div class="cc-settings__label">Local URL</div>
+                    <div class="cc-settings__input-row">
+                      <input class="cc-settings__input" data-local-api value="${localDraft}" placeholder="${DEFAULT_LOCAL_API}" />
+                      <button class="cc-settings__btn cc-settings__btn--ghost" data-save-local ${localSaving ? "disabled" : ""}>
+                        ${localSaving ? "Checking..." : "Save"}
+                      </button>
+                    </div>
+                    ${localStatus.text ? `<div class="cc-settings__status ${localStatus.tone ? `cc-settings__status--${localStatus.tone}` : ""}">${localStatus.text}</div>` : ""}
+                  </div>
                 </div>
-                <div class="cc-settings__actions">
-                  <button class="cc-settings__btn" data-login>${auth.isLoggedIn() ? "Open Offers Camp" : "Login"}</button>
-                  <button class="cc-settings__btn cc-settings__btn--ghost" data-logout>Logout</button>
+              `}
+            </div>
+            ${useCloud ? `
+              <div class="cc-settings__section">
+                <div class="cc-settings__row">
+                  <div>
+                    <div class="cc-settings__title">Account</div>
+                    <div class="cc-settings__meta">${username ? `Signed in as <strong>${username}</strong>` : "No active session"}</div>
+                  </div>
+                  <div class="cc-settings__actions">
+                    <button class="cc-settings__btn" data-login>${auth.isLoggedIn() ? "Open Offers Camp" : "Login"}</button>
+                    <button class="cc-settings__btn cc-settings__btn--ghost" data-logout>Logout</button>
+                  </div>
                 </div>
               </div>
-            </div>
+            ` : ""}
             <div class="cc-settings__section">
               <div class="cc-settings__row">
                 <div>
@@ -187,22 +228,97 @@
       root.querySelector("[data-close]").addEventListener("click", () => {
         closeSettings();
       });
-      root.querySelector("[data-login]").addEventListener("click", () => {
-        if (auth.isLoggedIn()) {
-          window.open(appBase, "_blank", "noopener");
-          return;
-        }
-        auth.openLogin();
-      });
-      root.querySelector("[data-logout]").addEventListener("click", () => {
-        auth.logout().then(() => {
-          username = "";
-          render();
+      const loginBtn = root.querySelector("[data-login]");
+      if (loginBtn) {
+        loginBtn.addEventListener("click", () => {
+          if (auth.isLoggedIn()) {
+            window.open(appBase, "_blank", "noopener");
+            return;
+          }
+          auth.openLogin();
         });
-      });
+      }
+      const logoutBtn = root.querySelector("[data-logout]");
+      if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+          auth.logout().then(() => {
+            username = "";
+            render();
+          });
+        });
+      }
       root.querySelector("[data-auto-send]").addEventListener("change", event => {
         OffersCamp.settings.set({ autoSend: event.target.checked });
       });
+      const useCloudToggle = root.querySelector("[data-use-cloud]");
+      if (useCloudToggle) {
+        useCloudToggle.addEventListener("change", event => {
+          OffersCamp.settings.set({ useCloud: event.target.checked });
+        });
+      }
+      const localInput = root.querySelector("[data-local-api]");
+      if (localInput) {
+        localInput.addEventListener("input", event => {
+          localDraft = event.target.value;
+        });
+      }
+      const saveLocalBtn = root.querySelector("[data-save-local]");
+      if (saveLocalBtn) {
+        saveLocalBtn.addEventListener("click", () => {
+          const trimmed = String(localDraft || "").trim();
+          const normalized = normalizeApiBase(trimmed);
+          if (!normalized) {
+            localStatus = { text: "Enter a valid address.", tone: "error" };
+            render();
+            return;
+          }
+          localSaving = true;
+          localStatus = { text: "Checking backend...", tone: "" };
+          render();
+          const healthUrl = `${normalized}/health`;
+          const request = {
+            method: "GET",
+            url: healthUrl,
+            onload: response => {
+              if (response.status >= 200 && response.status < 300) {
+                localSaving = false;
+                localStatus = { text: "Connected", tone: "success" };
+                OffersCamp.settings.set({ localApiBase: trimmed.replace(/\/+$/, "") });
+                return;
+              }
+              localSaving = false;
+              localStatus = { text: "Local server unavailable", tone: "error" };
+              render();
+            },
+            onerror: () => {
+              localSaving = false;
+              localStatus = { text: "Local server unavailable", tone: "error" };
+              render();
+            },
+            ontimeout: () => {
+              localSaving = false;
+              localStatus = { text: "Local server unavailable", tone: "error" };
+              render();
+            }
+          };
+          if (typeof GM_xmlhttpRequest === "function") {
+            GM_xmlhttpRequest(request);
+          } else {
+            fetch(healthUrl, { method: "GET" })
+              .then(response => {
+                if (!response.ok) throw new Error("offline");
+                localSaving = false;
+                localStatus = { text: "Connected", tone: "success" };
+                OffersCamp.settings.set({ localApiBase: trimmed.replace(/\/+$/, "") });
+              })
+              .catch(() => {
+                localSaving = false;
+                localStatus = { text: "Local server unavailable", tone: "error" };
+                render();
+              });
+          }
+        });
+      }
       root.querySelectorAll("[data-provider]").forEach(input => {
         input.addEventListener("change", event => {
           OffersCamp.settings.set({
@@ -234,19 +350,33 @@
     }
 
     render();
-    OffersCamp.settings.onChange(render);
-    if (auth.onChange) {
-      auth.onChange(() => {
+    OffersCamp.settings.onChange(() => {
+      render();
+      if (OffersCamp.settings.get().useCloud !== false) {
         fetchUser(auth, apiBase, name => {
           username = name;
           render();
         });
+      } else {
+        username = "";
+      }
+    });
+    if (auth.onChange) {
+      auth.onChange(() => {
+        if (OffersCamp.settings.get().useCloud !== false) {
+          fetchUser(auth, apiBase, name => {
+            username = name;
+            render();
+          });
+        }
       });
     }
-    fetchUser(auth, apiBase, name => {
-      username = name;
-      render();
-    });
+    if (OffersCamp.settings.get().useCloud !== false) {
+      fetchUser(auth, apiBase, name => {
+        username = name;
+        render();
+      });
+    }
   }
 
   OffersCamp.settingsUI = {

@@ -5,13 +5,13 @@
   const config = window.OffersCampConfig || {};
   const appBase = config.appBase || "http://localhost:5173";
   const apiBase = config.apiBase || "http://localhost:4000";
-  const API_ENDPOINT = `${apiBase}/offers`;
+  const DEFAULT_LOCAL_API = "localhost:4000";
   const SEND_DEBOUNCE_MS = 300;
   const LOGIN_URL = `${appBase}/?tm=1&tmOrigin=${encodeURIComponent(window.location.origin)}`;
-  const VERIFY_URL = `${apiBase}/auth/verify`;
   const settingsStore = OffersCamp.settings;
   const SEND_BUTTON_LABEL = "Send now";
   const SEND_BUTTON_LOADING_LABEL = "Sending...";
+  const AUTH_DISABLED_STATUS = "Ready";
 
   const state = {
     activeProvider: null,
@@ -30,7 +30,10 @@
       sent: 0
     }
   };
-  let settings = settingsStore ? settingsStore.get() : { autoSend: true, providers: {} };
+  let settings = settingsStore
+    ? settingsStore.get()
+    : { autoSend: true, providers: {}, useCloud: true, localApiBase: DEFAULT_LOCAL_API };
+  let authInitialized = false;
   const panelHandlers = {
     onSend: null,
     onLogin: null,
@@ -47,6 +50,13 @@
         clearQueue();
         fadeOutPanel();
         return;
+      }
+      if (isCloudEnabled()) {
+        initAuth();
+      } else {
+        authInitialized = false;
+        setStatus(AUTH_DISABLED_STATUS);
+        updateAuthUI();
       }
       if (state.activeProvider && !state.providerStarted) {
         state.activeProvider.start(pushOffers);
@@ -69,6 +79,78 @@
   OffersCamp.registerProvider = OffersCamp.registerProvider || function registerProvider(provider) {
     OffersCamp.providers.push(provider);
   };
+
+  function normalizeApiBase(value) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) return "";
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+    return `http://${trimmed}`;
+  }
+
+  function isCloudEnabled() {
+    return settings.useCloud !== false;
+  }
+
+  function getApiBase() {
+    if (isCloudEnabled()) return apiBase;
+    const localBase = normalizeApiBase(settings.localApiBase || DEFAULT_LOCAL_API);
+    return localBase || normalizeApiBase(DEFAULT_LOCAL_API);
+  }
+
+  function getApiEndpoint() {
+    return `${getApiBase()}/offers`;
+  }
+
+  function getVerifyUrl() {
+    return `${getApiBase()}/auth/verify`;
+  }
+
+  function isLoggedIn() {
+    if (!isCloudEnabled()) return true;
+    if (!auth || typeof auth.isLoggedIn !== "function") return false;
+    return auth.isLoggedIn();
+  }
+
+  function initAuth() {
+    if (!isCloudEnabled() || authInitialized || !auth) return;
+    authInitialized = true;
+    auth.init({
+      loginUrl: LOGIN_URL,
+      verifyUrl: getVerifyUrl(),
+      onStatus: setStatus,
+      onAuthChange: () => {
+        if (state.activeProvider && !isProviderEnabled(state.activeProvider.id)) {
+          clearQueue();
+          fadeOutPanel();
+          return;
+        }
+        updateAuthUI();
+        if (isLoggedIn()) {
+          if (panelVisible && !state.activeProvider.needsManualFetch) {
+            fadeOutPanel();
+          }
+        } else {
+          ensurePanel();
+          updateUI();
+          updateAuthUI();
+        }
+      },
+      onTokenSaved: () => {
+        if (state.activeProvider && !isProviderEnabled(state.activeProvider.id)) {
+          clearQueue();
+          fadeOutPanel();
+          return;
+        }
+        updateAuthUI();
+        if (panelVisible && !state.activeProvider.needsManualFetch) {
+          fadeOutPanel();
+        }
+        if (state.pending.size) {
+          scheduleSend();
+        }
+      }
+    });
+  }
 
   function createPanel() {
     const panel = document.createElement("div");
@@ -152,7 +234,7 @@
   function shouldShowPanel() {
     if (!state.activeProvider) return false;
     if (!isProviderEnabled(state.activeProvider.id)) return false;
-    if (!auth || !auth.isLoggedIn || !auth.isLoggedIn()) return true;
+    if (!isLoggedIn()) return isCloudEnabled();
     return !settings.autoSend || state.activeProvider.needsManualFetch;
   }
 
@@ -248,7 +330,7 @@
 
   function updateAuthUI() {
     if (!panelVisible) return;
-    const loggedIn = auth.isLoggedIn();
+    const loggedIn = isLoggedIn();
     const allowManual = state.activeProvider
       ? state.activeProvider.needsManualFetch || !settings.autoSend
       : !settings.autoSend;
@@ -256,10 +338,10 @@
       sendBtn.style.display = loggedIn && allowManual ? "inline-flex" : "none";
     }
     if (loginBtn) {
-      loginBtn.style.display = loggedIn ? "none" : "inline-flex";
+      loginBtn.style.display = isCloudEnabled() && !loggedIn ? "inline-flex" : "none";
     }
     if (logoutBtn) {
-      logoutBtn.style.display = loggedIn ? "inline-flex" : "none";
+      logoutBtn.style.display = isCloudEnabled() && loggedIn ? "inline-flex" : "none";
     }
     updateSendButtonState();
   }
@@ -322,7 +404,7 @@
     state.stats.collected += added;
     updateUI();
     scheduleSend();
-    if (panelVisible && auth.isLoggedIn() && settings.autoSend) {
+    if (panelVisible && isLoggedIn() && settings.autoSend) {
       fadeOutPanel();
     }
   }
@@ -353,7 +435,7 @@
       setManualSending(false);
       return;
     }
-    if (!auth.isLoggedIn()) {
+    if (!isLoggedIn()) {
       setStatus("Login required");
       setManualSending(false);
       return;
@@ -402,7 +484,7 @@
   }
 
   function processQueue() {
-    if (!auth.isLoggedIn() || state.inFlight || state.queue.length === 0) return;
+    if (!isLoggedIn() || state.inFlight || state.queue.length === 0) return;
     const batch = state.queue.shift();
     if (!batch) return;
     state.inFlight = true;
@@ -412,14 +494,19 @@
     }
     setStatus(`Sending ${batch.offers.length}...`);
     const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.getToken()}`
+      "Content-Type": "application/json"
     };
+    const token = isCloudEnabled() && auth && typeof auth.getToken === "function"
+      ? auth.getToken() || ""
+      : "";
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
     GM_xmlhttpRequest({
       method: "POST",
-      url: API_ENDPOINT,
+      url: getApiEndpoint(),
       headers,
-      data: JSON.stringify({ offers: batch.offers }),
+      data: JSON.stringify({ offers: batch.offers, token }),
       onload: () => {
         state.inFlight = false;
         state.stats.sent += batch.offers.length;
@@ -532,42 +619,11 @@
       provider.start(pushOffers);
       state.providerStarted = true;
     }
-    await auth.init({
-      loginUrl: LOGIN_URL,
-      verifyUrl: VERIFY_URL,
-      onStatus: setStatus,
-      onAuthChange: () => {
-        if (state.activeProvider && !isProviderEnabled(state.activeProvider.id)) {
-          clearQueue();
-          fadeOutPanel();
-          return;
-        }
-        updateAuthUI();
-        if (auth.isLoggedIn()) {
-          if (panelVisible && !provider.needsManualFetch) {
-            fadeOutPanel();
-          }
-        } else {
-          ensurePanel();
-          updateUI();
-          updateAuthUI();
-        }
-      },
-      onTokenSaved: () => {
-        if (state.activeProvider && !isProviderEnabled(state.activeProvider.id)) {
-          clearQueue();
-          fadeOutPanel();
-          return;
-        }
-        updateAuthUI();
-        if (panelVisible && !provider.needsManualFetch) {
-          fadeOutPanel();
-        }
-        if (state.pending.size) {
-          scheduleSend();
-        }
-      }
-    });
+    if (isCloudEnabled()) {
+      initAuth();
+    } else {
+      setStatus(AUTH_DISABLED_STATUS);
+    }
     if (shouldShowPanel()) {
       ensurePanel();
       updateUI();
@@ -588,8 +644,12 @@
         fadeOutPanel();
       }
     };
-    panelHandlers.onLogin = () => auth.openLogin();
+    panelHandlers.onLogin = () => {
+      if (!isCloudEnabled() || !auth) return;
+      auth.openLogin();
+    };
     panelHandlers.onLogout = () => {
+      if (!isCloudEnabled() || !auth) return;
       auth.logout().then(() => {
         setStatus("Logged out");
         updateAuthUI();
