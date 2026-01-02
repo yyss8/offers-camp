@@ -7,6 +7,8 @@ import crypto from 'node:crypto';
 import { getDb } from './db.js';
 import { createUserRepo } from './repositories/userRepo.js';
 import { createOfferRepo } from './repositories/offerRepo.js';
+import { validateUsername } from './utils/usernameValidator.js';
+import { sendVerificationEmail } from './services/emailService.js';
 
 const app = express();
 const frontendOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
@@ -68,7 +70,21 @@ function generateVerificationCode() {
 }
 
 async function sendVerificationCode(user, code) {
+  // Log to console for development/debugging
   console.log(`[Offers Camp] Verification code for ${user.email}: ${code}`);
+
+  // Send actual email
+  try {
+    await sendVerificationEmail({
+      to: user.email,
+      username: user.username,
+      code: code,
+    });
+  } catch (error) {
+    console.error(`[Offers Camp] Failed to send verification email to ${user.email}:`, error.message);
+    // Don't throw error - registration should succeed even if email fails
+    // The code is still logged to console for debugging
+  }
 }
 
 const VERIFICATION_CODE_TTL_MS = 15 * 60 * 1000;
@@ -153,6 +169,52 @@ app.post('/auth/register', async (req, res, next) => {
     if (!username || !email || !password) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    // Validate username against reserved names and format rules
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.valid) {
+      return res.status(400).json({ error: usernameValidation.reason });
+    }
+
+    // Check if email already exists
+    const existingByEmail = await req.userRepo.findByEmail(email);
+    if (existingByEmail && existingByEmail.email_verified) {
+      return res.status(409).json({ error: 'Email already in use' });
+    }
+
+    // Check if username already exists
+    const existingByUsername = await req.userRepo.findByUsernameOrEmail(username);
+    if (existingByUsername && existingByUsername.username === username && existingByUsername.email_verified) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+
+    // Determine which user to update (prioritize by email)
+    let existingUser = existingByEmail;
+    if (!existingUser && existingByUsername && existingByUsername.username === username) {
+      existingUser = existingByUsername;
+    }
+
+    if (existingUser) {
+      // User exists but not verified - update and resend
+      const code = generateVerificationCode();
+      const codeHash = hashVerificationCode(code);
+      const newExpiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
+      const hash = await bcrypt.hash(password, 12);
+
+      // Update username, email, password, and verification code
+      await req.db('users').where({ id: existingUser.id }).update({
+        username: username,
+        email: email,
+        password_hash: hash,
+        email_verify_code_hash: codeHash,
+        email_verify_expires_at: newExpiresAt,
+      });
+
+      await sendVerificationCode({ ...existingUser, username, email }, code);
+      return res.json({ verificationRequired: true, email: email });
+    }
+
+    // New user - create account
     const hash = await bcrypt.hash(password, 12);
     const code = generateVerificationCode();
     const codeHash = hashVerificationCode(code);
@@ -169,7 +231,7 @@ app.post('/auth/register', async (req, res, next) => {
     res.json({ verificationRequired: true, email: created.email });
   } catch (err) {
     if (err && err.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ error: 'User already exists' });
+      return res.status(409).json({ error: 'Username or email already exists' });
     }
     next(err);
   }
@@ -195,12 +257,7 @@ app.post('/auth/login', async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (!user.email_verified) {
-      const code = generateVerificationCode();
-      const codeHash = hashVerificationCode(code);
-      const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
-      await req.userRepo.setVerificationCode(user.id, codeHash, expiresAt);
-      await sendVerificationCode(user, code);
-      return res.json({ verificationRequired: true, email: user.email });
+      return res.status(403).json({ error: 'Email not verified. Please contact support.' });
     }
     req.session.user = { id: user.id, username: user.username, email: user.email };
     res.json({ user: req.session.user });
@@ -235,6 +292,50 @@ app.post('/auth/verify-code', async (req, res, next) => {
     await req.userRepo.markVerified(user.id);
     req.session.user = { id: user.id, username: user.username, email: user.email };
     res.json({ user: req.session.user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Rate limiting for resend: track last resend time per email
+const resendCooldowns = new Map();
+const RESEND_COOLDOWN_MS = 30 * 1000; // 30 seconds
+
+app.post('/auth/resend-code', async (req, res, next) => {
+  try {
+    const email = String(req.body?.email || '').trim();
+    if (!email) {
+      return res.status(400).json({ error: 'Email required' });
+    }
+
+    // Check cooldown
+    const lastResend = resendCooldowns.get(email);
+    if (lastResend && Date.now() - lastResend < RESEND_COOLDOWN_MS) {
+      const remaining = Math.ceil((RESEND_COOLDOWN_MS - (Date.now() - lastResend)) / 1000);
+      return res.status(429).json({ error: `Please wait ${remaining} seconds before resending`, remaining });
+    }
+
+    const user = await req.userRepo.findByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (user.email_verified) {
+      return res.status(400).json({ error: 'Email already verified' });
+    }
+
+    // Generate and send new code
+    const code = generateVerificationCode();
+    const codeHash = hashVerificationCode(code);
+    const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
+
+    await req.userRepo.setVerificationCode(user.id, codeHash, expiresAt);
+    await sendVerificationCode(user, code);
+
+    // Update cooldown
+    resendCooldowns.set(email, Date.now());
+
+    res.json({ success: true, message: 'Verification code sent' });
   } catch (err) {
     next(err);
   }

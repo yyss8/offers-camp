@@ -13,11 +13,14 @@ export default function LoginView({
   verifyForm,
   onVerifyChange,
   onVerifySubmit,
+  onResendCode,
   authError,
   authNotice,
   loggingIn,
   registering,
-  verifying
+  verifying,
+  resending,
+  resendCooldown
 }) {
   const mode = isLocalApi ? "login" : authMode;
   const heading =
@@ -57,22 +60,20 @@ export default function LoginView({
               <button
                 type="button"
                 onClick={() => onModeChange("login")}
-                className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${
-                  mode === "login"
-                    ? "bg-stone-900 text-white shadow-sm"
-                    : "text-stone-500 hover:text-stone-900"
-                }`}
+                className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${mode === "login"
+                  ? "bg-stone-900 text-white shadow-sm"
+                  : "text-stone-500 hover:text-stone-900"
+                  }`}
               >
                 Sign in
               </button>
               <button
                 type="button"
                 onClick={() => onModeChange("register")}
-                className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${
-                  mode === "register"
-                    ? "bg-stone-900 text-white shadow-sm"
-                    : "text-stone-500 hover:text-stone-900"
-                }`}
+                className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${mode === "register"
+                  ? "bg-stone-900 text-white shadow-sm"
+                  : "text-stone-500 hover:text-stone-900"
+                  }`}
               >
                 Register
               </button>
@@ -81,10 +82,10 @@ export default function LoginView({
           {!isLocalApi && mode === "verify" ? (
             <button
               type="button"
-              onClick={() => onModeChange("login")}
+              onClick={() => onModeChange("register")}
               className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-stone-500 hover:text-stone-900"
             >
-              Back to sign in
+              Back to register
             </button>
           ) : null}
           {authNotice ? (
@@ -109,6 +110,7 @@ export default function LoginView({
                   }
                   className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
                   autoComplete="username"
+                  minLength={4}
                   required
                 />
               </label>
@@ -133,6 +135,7 @@ export default function LoginView({
                   }
                   className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
                   autoComplete="new-password"
+                  minLength={6}
                   required
                 />
               </label>
@@ -152,8 +155,9 @@ export default function LoginView({
                   type="email"
                   value={verifyForm.email}
                   onChange={event => onVerifyChange("email", event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                  className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
                   autoComplete="email"
+                  disabled
                   required
                 />
               </label>
@@ -176,6 +180,14 @@ export default function LoginView({
                 className="rounded-full bg-stone-900 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {verifying ? "Verifying..." : "Verify"}
+              </button>
+              <button
+                type="button"
+                onClick={onResendCode}
+                disabled={resending || resendCooldown > 0}
+                className="rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {resending ? "Sending..." : resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : "Resend code"}
               </button>
             </form>
           ) : (

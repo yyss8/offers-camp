@@ -33,6 +33,8 @@ export default function App() {
   const [loggingIn, setLoggingIn] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const tokenSentRef = useRef(false);
   const [tmStatus, setTmStatus] = useState("");
   const [offers, setOffers] = useState([]);
@@ -284,12 +286,12 @@ export default function App() {
           ...offer,
           cards: offer.card_num
             ? [
-                {
-                  cardNum: offer.card_num,
-                  enrolled: !!offer.enrolled,
-                  label: cardLabel
-                }
-              ]
+              {
+                cardNum: offer.card_num,
+                enrolled: !!offer.enrolled,
+                label: cardLabel
+              }
+            ]
             : []
         });
         return;
@@ -363,15 +365,6 @@ export default function App() {
         throw new Error("Invalid credentials");
       }
       const data = await res.json();
-      if (data && data.verificationRequired) {
-        setAuthMode("verify");
-        setVerifyForm({
-          email: data.email || loginForm.username.trim(),
-          code: ""
-        });
-        setAuthNotice("Verification required. Enter the 6-digit code.");
-        return;
-      }
       setUser(data.user || null);
       setLoginForm({ username: "", password: "" });
     } catch (err) {
@@ -403,7 +396,8 @@ export default function App() {
         })
       });
       if (!res.ok) {
-        throw new Error("Registration failed");
+        const data = await res.json();
+        throw new Error(data.error || "Registration failed");
       }
       const data = await res.json();
       if (data && data.verificationRequired) {
@@ -413,12 +407,22 @@ export default function App() {
           code: ""
         });
         setAuthNotice("Verification code sent. Check your email.");
-        setRegisterForm({ username: "", email: "", password: "" });
+        // Start 30-second countdown immediately when code is sent
+        setResendCooldown(30);
+        const interval = setInterval(() => {
+          setResendCooldown(prev => {
+            if (prev <= 1) {
+              clearInterval(interval);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
         return;
       }
       setAuthError("Registration requires verification");
     } catch (err) {
-      setAuthError("Registration failed");
+      setAuthError(err.message || "Registration failed");
     } finally {
       setRegistering(false);
     }
@@ -449,9 +453,12 @@ export default function App() {
       }
       const data = await res.json();
       setUser(data.user || null);
+      // Reset all forms and mode on successful verification
+      setAuthMode("login");
       setLoginForm({ username: "", password: "" });
       setRegisterForm({ username: "", email: "", password: "" });
       setVerifyForm({ email: "", code: "" });
+      setResendCooldown(0);
     } catch (err) {
       setAuthError("Verification failed");
     } finally {
@@ -461,6 +468,40 @@ export default function App() {
 
   function handleVerifyChange(field, value) {
     setVerifyForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  async function handleResendCode() {
+    if (resending || resendCooldown > 0) return;
+    setResending(true);
+    setAuthError("");
+    try {
+      const res = await fetch(`${API_BASE}/auth/resend-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: verifyForm.email.trim() })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to resend code");
+      }
+      setAuthNotice("Verification code sent. Check your email.");
+      // Start 30-second countdown
+      setResendCooldown(30);
+      const interval = setInterval(() => {
+        setResendCooldown(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setAuthError(err.message || "Failed to resend code");
+    } finally {
+      setResending(false);
+    }
   }
 
   async function handleLogout() {
@@ -473,6 +514,11 @@ export default function App() {
       // Ignore logout errors and still clear local state.
     } finally {
       setUser(null);
+      setAuthMode("login");
+      setLoginForm({ username: "", password: "" });
+      setRegisterForm({ username: "", email: "", password: "" });
+      setVerifyForm({ email: "", code: "" });
+      setResendCooldown(0);
     }
   }
 
@@ -535,11 +581,14 @@ export default function App() {
         verifyForm={verifyForm}
         onVerifyChange={handleVerifyChange}
         onVerifySubmit={handleVerify}
+        onResendCode={handleResendCode}
         authError={authError}
         authNotice={authNotice}
         loggingIn={loggingIn}
         registering={registering}
         verifying={verifying}
+        resending={resending}
+        resendCooldown={resendCooldown}
       />
     );
   }
