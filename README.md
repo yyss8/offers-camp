@@ -6,6 +6,8 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 [![Tampermonkey](https://img.shields.io/badge/UserScript-Tampermonkey-red)](https://www.tampermonkey.net/)
 
+[中文版 README](README-ZH.MD)
+
 **Offers Camp** is a self-hostable, privacy-first credit card offers hub. It collects data via a browser userscript and syncs it to a web dashboard, allowing you to search, filter, and track offers across multiple banks in one place.
 
 ## ✨ Features
@@ -96,46 +98,13 @@ From the Offers Camp settings panel, you can fully customize the collector's beh
 
 #### Backend Connection
 * **Local Backend**: Use this if you are self-hosting the platform for privacy purpose.
-* **Cloud Backend** (Default): Syncs to the public Offers Camp web dashboard.
+* **Cloud Backend** (Default): Syncs to the public `Offers Camp` web dashboard. (Requires an account)
 
 > **Note**: Provider settings are stored locally in Tampermonkey and are applied consistently across all supported banks.
 
 ## 🛠 Self-Hosting/Local Development.
 
-This repository is a monorepo containing the API server, the React frontend, and the Userscript source.
-
-### Prerequisites
-
-- Node.js (v20.0+)
-- Mysql v8.0+
-
-### Backend
-
-```bash
-cd backend
-# Copy env example
-cp .env.example .env
-# Install dependencies
-npm install
-# Start dev server
-npm run dev
-```
-
-The API runs on `http://localhost:4000`.
-
-### Frontend
-
-The frontend provides the dashboard and serves the userscript installer page.
-
-```bash
-cd frontend
-# Install dependencies
-npm install
-# Start dev server
-npm run dev
-```
-
-The UI runs on `http://localhost:5173`.
+See [SELF-HOSTING.MD](SELF-HOSTING.MD)
 
 ## ⚖️ License
 
