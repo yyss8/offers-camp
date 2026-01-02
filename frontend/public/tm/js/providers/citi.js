@@ -122,20 +122,21 @@
       return `${mm}/${dd}/${yy}`;
     }
 
-    function normalizeOffers(payload) {
+    function normalizeOffers(payload, cardInfo) {
       const groups = Array.isArray(payload?.merchantOffers) ? payload.merchantOffers : [];
       if (!groups.length) return [];
       const selectedCardNum = getSelectedCardNum();
       const primaryCardNum = getPrimaryCardNum(payload);
       const selectedLabel = getSelectedCardLabel();
       const primaryLabel = getPrimaryCardLabel(payload);
+      const fallbackLabel = selectedLabel || primaryLabel;
       const offers = groups.flatMap(group => {
         const groupCardNum = getGroupCardNum(group);
         const items = Array.isArray(group.offers) ? group.offers : [];
         return items.map(offer => ({
           offer,
-          cardNum: getOfferCardNum(offer) || groupCardNum || selectedCardNum || primaryCardNum,
-          cardLabel: selectedLabel || primaryLabel
+          cardNum: cardInfo?.cardNum || getOfferCardNum(offer) || groupCardNum || selectedCardNum || primaryCardNum,
+          cardLabel: cardInfo?.cardLabel || fallbackLabel
         }));
       });
       if (!offers.length) return [];
@@ -184,12 +185,12 @@
       lastRequest = { url, options };
     }
 
-    function handlePayload(payload, pushOffers, source) {
+    function handlePayload(payload, pushOffers, source, cardInfo) {
       if (provider.needsManualFetch && source !== "manual") return;
-      const normalized = normalizeOffers(payload);
+      const normalized = normalizeOffers(payload, cardInfo);
       if (!normalized.length) return;
       if (source === "manual") {
-        const selectedCardNum = getSelectedCardNum();
+        const selectedCardNum = cardInfo?.cardNum || getSelectedCardNum();
         if (selectedCardNum) {
           const filtered = normalized
             .filter(item => !item.cardNum || item.cardNum === selectedCardNum)
@@ -285,9 +286,200 @@
       pageWindow.XMLHttpRequest = PatchedXHR;
     }
 
+    function sleep(ms) {
+      return new Promise(resolve => pageWindow.setTimeout(resolve, ms));
+    }
+
+    function waitForElement(selector, timeoutMs) {
+      const doc = pageWindow.document;
+      if (!doc) return Promise.resolve(null);
+      const existing = doc.querySelector(selector);
+      if (existing) return Promise.resolve(existing);
+      if (!pageWindow.MutationObserver) return Promise.resolve(null);
+      return new Promise(resolve => {
+        let timeoutId;
+        const observer = new pageWindow.MutationObserver(() => {
+          const found = doc.querySelector(selector);
+          if (found) {
+            observer.disconnect();
+            if (timeoutId) pageWindow.clearTimeout(timeoutId);
+            resolve(found);
+          }
+        });
+        observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true });
+        timeoutId = pageWindow.setTimeout(() => {
+          observer.disconnect();
+          resolve(null);
+        }, timeoutMs || 10000);
+      });
+    }
+
+    function extractAccountIdFromOptionId(id) {
+      if (!id) return "";
+      const value = String(id);
+      const prefix = "mo-card-selector-option-";
+      if (!value.startsWith(prefix)) return "";
+      return value.slice(prefix.length);
+    }
+
+    function collectAccountOptions() {
+      const doc = pageWindow.document;
+      if (!doc) return [];
+      const listBox = doc.querySelector("#cds-dropdown-listbox");
+      if (!listBox) return [];
+      const options = Array.from(listBox.querySelectorAll('li[role="option"]')).filter(el => {
+        if (el.classList.contains("cds-option2-disabled")) return false;
+        if (el.classList.contains("cds-menu-item-disabled")) return false;
+        const ariaDisabled = el.getAttribute("aria-disabled");
+        return ariaDisabled !== "true";
+      });
+      return options.map(el => {
+        const label = (el.getAttribute("aria-label") || "").replace(/\u00a0/g, " ");
+        const accountId = extractAccountIdFromOptionId(el.getAttribute("id"));
+        return {
+          accountId,
+          cardNum: extractCardNum(label),
+          cardLabel: extractCardLabel(label)
+        };
+      }).filter(item => item.accountId);
+    }
+
+    async function collectAccountOptionsWithRetry() {
+      let best = [];
+      let lastCount = -1;
+      let stableCount = 0;
+      const start = Date.now();
+      while (Date.now() - start < 2500) {
+        const current = collectAccountOptions();
+        if (current.length > lastCount) {
+          best = current;
+          lastCount = current.length;
+          stableCount = 0;
+        } else {
+          stableCount += 1;
+          if (stableCount >= 2) break;
+        }
+        await sleep(200);
+      }
+      return best;
+    }
+
+    function createSendAllModal() {
+      const doc = pageWindow.document;
+      if (!doc || !doc.body) return null;
+      const overlay = doc.createElement("div");
+      overlay.className = "cc-offers-sendall";
+      const panel = doc.createElement("div");
+      panel.className = "cc-offers-sendall__panel";
+      const title = doc.createElement("div");
+      title.className = "cc-offers-sendall__title";
+      title.textContent = "Sending offers";
+      const status = doc.createElement("div");
+      status.className = "cc-offers-sendall__status";
+      status.textContent = "Preparing card list...";
+      const progress = doc.createElement("div");
+      progress.className = "cc-offers-sendall__progress";
+      const bar = doc.createElement("div");
+      bar.className = "cc-offers-sendall__progress-bar";
+      progress.appendChild(bar);
+      const stopBtn = doc.createElement("button");
+      stopBtn.type = "button";
+      stopBtn.className = "cc-offers-sendall__btn";
+      stopBtn.textContent = "Stop";
+      panel.appendChild(title);
+      panel.appendChild(status);
+      panel.appendChild(progress);
+      panel.appendChild(stopBtn);
+      overlay.appendChild(panel);
+      doc.body.appendChild(overlay);
+      return {
+        overlay,
+        stopBtn,
+        setStatus(text) {
+          status.textContent = text;
+        },
+        setProgress(value) {
+          const pct = Math.max(0, Math.min(100, value));
+          bar.style.width = `${pct}%`;
+        },
+        remove() {
+          overlay.remove();
+        }
+      };
+    }
+
+    let sendAllInFlight = false;
+
+    async function sendAll(pushOffers, setStatus, onDone) {
+      if (sendAllInFlight) {
+        if (typeof onDone === "function") onDone();
+        return;
+      }
+      if (!pageWindow.confirm("Send offers for all cards?")) {
+        if (typeof onDone === "function") onDone();
+        return;
+      }
+      sendAllInFlight = true;
+      let stopRequested = false;
+      const modal = createSendAllModal();
+      if (!modal) {
+        sendAllInFlight = false;
+        if (typeof onDone === "function") onDone();
+        return;
+      }
+      modal.stopBtn.addEventListener("click", () => {
+        stopRequested = true;
+        modal.stopBtn.disabled = true;
+        modal.setStatus("Stopping...");
+      });
+
+      try {
+        const listBox = pageWindow.document?.querySelector("#cds-dropdown-listbox");
+        if (!listBox) {
+          await waitForElement("#cds-dropdown-listbox", 10000);
+        }
+
+        modal.setStatus("Scanning cards...");
+        const options = await collectAccountOptionsWithRetry();
+        if (!options.length) {
+          modal.setProgress(100);
+          modal.setStatus("No cards found.");
+          modal.remove();
+          pageWindow.alert("Sent offers for 0 cards.");
+          return;
+        }
+
+        let completed = 0;
+        const total = options.length;
+        for (let i = 0; i < options.length; i += 1) {
+          if (stopRequested) break;
+          const cardInfo = options[i];
+          modal.setStatus(`Sending ${i + 1} of ${total}`);
+          await provider.manualFetch(pushOffers, setStatus, cardInfo);
+          completed += 1;
+          modal.setProgress((completed / total) * 100);
+          if (stopRequested) break;
+          await sleep(500);
+        }
+
+        if (stopRequested) {
+          return;
+        }
+        modal.remove();
+        pageWindow.alert(`Sent offers for ${completed} cards.`);
+      } finally {
+        if (stopRequested && modal) {
+          modal.remove();
+        }
+        sendAllInFlight = false;
+        if (typeof onDone === "function") onDone();
+      }
+    }
+
     const provider = {
       id: "citi",
       needsManualFetch: !isAutoSendEnabled(),
+      supportsSendAll: true,
       match,
       getCardLabel() {
         const cardLabel = getSelectedCardLabel();
@@ -305,25 +497,46 @@
           });
         }
       },
-      manualFetch(pushOffers, setStatus) {
-        if (!lastRequest) {
-          if (setStatus) setStatus("No recent request captured yet");
-          return;
-        }
-        const options = {
-          method: lastRequest.options?.method || "GET",
-          headers: { ...(lastRequest.options?.headers || {}) },
-          body: lastRequest.options?.body ?? null,
-          credentials: lastRequest.options?.credentials || "include",
-          mode: lastRequest.options?.mode
-        };
-        if (setStatus) setStatus("Manual send");
-        pageWindow.fetch(lastRequest.url, options)
-          .then(response => response.json())
-          .then(data => handlePayload(data, pushOffers, "manual"))
-          .catch(() => {
-            if (setStatus) setStatus("Manual send failed");
-          });
+      manualFetch(pushOffers, setStatus, cardInfo) {
+        return new Promise(resolve => {
+          if (!lastRequest) {
+            if (setStatus) setStatus("No recent request captured yet");
+            resolve(false);
+            return;
+          }
+          const options = {
+            method: lastRequest.options?.method || "GET",
+            headers: { ...(lastRequest.options?.headers || {}) },
+            body: lastRequest.options?.body ?? null,
+            credentials: lastRequest.options?.credentials || "include",
+            mode: lastRequest.options?.mode
+          };
+          if (cardInfo?.accountId) {
+            try {
+              const rawBody = options.body;
+              const parsedBody =
+                typeof rawBody === "string" && rawBody.trim()
+                  ? JSON.parse(rawBody)
+                  : (rawBody && typeof rawBody === "object" ? { ...rawBody } : {});
+              parsedBody.accountId = cardInfo.accountId;
+              options.body = JSON.stringify(parsedBody);
+            } catch (_) {}
+          }
+          if (setStatus) setStatus("Manual send");
+          pageWindow.fetch(lastRequest.url, options)
+            .then(response => response.json())
+            .then(data => {
+              handlePayload(data, pushOffers, "manual", cardInfo);
+              resolve(true);
+            })
+            .catch(() => {
+              if (setStatus) setStatus("Manual send failed");
+              resolve(false);
+            });
+        });
+      },
+      sendAll(pushOffers, setStatus, onDone) {
+        sendAll(pushOffers, setStatus, onDone);
       }
     };
 
