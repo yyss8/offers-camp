@@ -2,7 +2,7 @@
   const OffersCamp = window.OffersCamp = window.OffersCamp || {};
 
   const DEFAULT_SETTINGS = {
-    autoSend: true,
+    autoSend: false,
     useCloud: true,
     localApiBase: "localhost:4000",
     providers: {

@@ -112,10 +112,10 @@
       return `${mm}/${dd}/${yy}`;
     }
 
-    function normalizeOffers(payload) {
+    function normalizeOffers(payload, cardInfo) {
       const groups = Array.isArray(payload?.customerOffers) ? payload.customerOffers : [];
-      const selectedCardNum = getSelectedCardNum();
-      const selectedLabel = getSelectedCardLabel();
+      const selectedCardNum = cardInfo?.cardNum || getSelectedCardNum();
+      const selectedLabel = cardInfo?.cardLabel || getSelectedCardLabel();
       const offers = groups.flatMap(group => {
         const groupCardNum = getGroupCardNum(group);
         const items = Array.isArray(group.offers) ? group.offers : [];
@@ -265,12 +265,12 @@
       };
     }
 
-    function handlePayload(payload, pushOffers, source) {
+    function handlePayload(payload, pushOffers, source, cardInfo) {
       if (provider.needsManualFetch && source !== "manual") return;
-      const normalized = normalizeOffers(payload);
+      const normalized = normalizeOffers(payload, cardInfo);
       if (!normalized.length) return;
       if (source === "manual") {
-        const selectedCardNum = getSelectedCardNum();
+        const selectedCardNum = cardInfo?.cardNum || getSelectedCardNum();
         if (selectedCardNum) {
           const filtered = normalized
             .filter(item => {
@@ -394,9 +394,210 @@
       pageWindow.XMLHttpRequest = PatchedXHR;
     }
 
+    function sleep(ms) {
+      return new Promise(resolve => pageWindow.setTimeout(resolve, ms));
+    }
+
+    function waitForElement(selector, timeoutMs) {
+      const doc = pageWindow.document;
+      if (!doc) return Promise.resolve(null);
+      const existing = doc.querySelector(selector);
+      if (existing) return Promise.resolve(existing);
+      if (!pageWindow.MutationObserver) return Promise.resolve(null);
+      return new Promise(resolve => {
+        let timeoutId;
+        const observer = new pageWindow.MutationObserver(() => {
+          const found = doc.querySelector(selector);
+          if (found) {
+            observer.disconnect();
+            if (timeoutId) pageWindow.clearTimeout(timeoutId);
+            resolve(found);
+          }
+        });
+        observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true });
+        timeoutId = pageWindow.setTimeout(() => {
+          observer.disconnect();
+          resolve(null);
+        }, timeoutMs || 10000);
+      });
+    }
+
+    function parseCardInfoFromLabel(label) {
+      const text = (label || "").trim();
+      if (!text) return { cardNum: "", cardLabel: "" };
+      const cardLabelMatch = text.match(/^(.+?)(?:\s*\(\.\.\.\d{4}\)\s*|\s*-\s*\d{4}\s*|$)/);
+      const cardLabel = cardLabelMatch ? cardLabelMatch[1].trim() : text;
+      if (utils.extractLastDigits) {
+        return {
+          cardNum: utils.extractLastDigits(text, 4),
+          cardLabel
+        };
+      }
+      const digits = text.replace(/\D/g, "");
+      return {
+        cardNum: digits ? digits.slice(-4) : "",
+        cardLabel
+      };
+    }
+
+    function collectAccountOptions() {
+      const doc = pageWindow.document;
+      if (!doc) return [];
+      const elements = Array.from(doc.querySelectorAll(".mds-select-option--bcb"));
+      const seen = new Set();
+      return elements
+        .map(el => {
+          const primaryDigitalAccountIdentifier = el.getAttribute("value") || "";
+          const label = el.getAttribute("label") || el.getAttribute("aria-label") || "";
+          const { cardNum, cardLabel } = parseCardInfoFromLabel(label);
+          if (!primaryDigitalAccountIdentifier || seen.has(primaryDigitalAccountIdentifier)) return null;
+          seen.add(primaryDigitalAccountIdentifier);
+          return {
+            primaryDigitalAccountIdentifier,
+            cardNum,
+            cardLabel
+          };
+        })
+        .filter(Boolean);
+    }
+
+    async function collectAccountOptionsWithRetry() {
+      let best = [];
+      let lastCount = -1;
+      let stableCount = 0;
+      const start = Date.now();
+      while (Date.now() - start < 2500) {
+        const current = collectAccountOptions();
+        if (current.length > lastCount) {
+          best = current;
+          lastCount = current.length;
+          stableCount = 0;
+        } else {
+          stableCount += 1;
+          if (stableCount >= 2) break;
+        }
+        await sleep(200);
+      }
+      return best;
+    }
+
+    function createSendAllModal() {
+      const doc = pageWindow.document;
+      if (!doc || !doc.body) return null;
+      const overlay = doc.createElement("div");
+      overlay.className = "cc-offers-sendall";
+      const panel = doc.createElement("div");
+      panel.className = "cc-offers-sendall__panel";
+      const title = doc.createElement("div");
+      title.className = "cc-offers-sendall__title";
+      title.textContent = "Sending offers";
+      const status = doc.createElement("div");
+      status.className = "cc-offers-sendall__status";
+      status.textContent = "Preparing card list...";
+      const progress = doc.createElement("div");
+      progress.className = "cc-offers-sendall__progress";
+      const bar = doc.createElement("div");
+      bar.className = "cc-offers-sendall__progress-bar";
+      progress.appendChild(bar);
+      const stopBtn = doc.createElement("button");
+      stopBtn.type = "button";
+      stopBtn.className = "cc-offers-sendall__btn";
+      stopBtn.textContent = "Stop";
+      panel.appendChild(title);
+      panel.appendChild(status);
+      panel.appendChild(progress);
+      panel.appendChild(stopBtn);
+      overlay.appendChild(panel);
+      doc.body.appendChild(overlay);
+      return {
+        overlay,
+        stopBtn,
+        setStatus(text) {
+          status.textContent = text;
+        },
+        setProgress(value) {
+          const pct = Math.max(0, Math.min(100, value));
+          bar.style.width = `${pct}%`;
+        },
+        remove() {
+          overlay.remove();
+        }
+      };
+    }
+
+    let sendAllInFlight = false;
+
+    async function sendAll(pushOffers, setStatus, onDone) {
+      if (sendAllInFlight) {
+        if (typeof onDone === "function") onDone();
+        return;
+      }
+      if (!pageWindow.confirm("Send offers for all cards?")) {
+        if (typeof onDone === "function") onDone();
+        return;
+      }
+      sendAllInFlight = true;
+      let stopRequested = false;
+      const modal = createSendAllModal();
+      if (!modal) {
+        sendAllInFlight = false;
+        if (typeof onDone === "function") onDone();
+        return;
+      }
+      modal.stopBtn.addEventListener("click", () => {
+        stopRequested = true;
+        modal.stopBtn.disabled = true;
+        modal.setStatus("Stopping...");
+      });
+
+      try {
+        const listSelector = ".mds-select-option--bcb";
+        const listReady = pageWindow.document?.querySelector(listSelector);
+        if (!listReady) {
+          await waitForElement(listSelector, 10000);
+        }
+
+        modal.setStatus("Scanning cards...");
+        const options = await collectAccountOptionsWithRetry();
+        if (!options.length) {
+          modal.setProgress(100);
+          modal.setStatus("No cards found.");
+          modal.remove();
+          pageWindow.alert("Sent offers for 0 cards.");
+          return;
+        }
+
+        let completed = 0;
+        const total = options.length;
+        for (let i = 0; i < options.length; i += 1) {
+          if (stopRequested) break;
+          const cardInfo = options[i];
+          modal.setStatus(`Sending ${i + 1} of ${total}`);
+          await provider.manualFetch(pushOffers, setStatus, cardInfo);
+          completed += 1;
+          modal.setProgress((completed / total) * 100);
+          if (stopRequested) break;
+          await sleep(500);
+        }
+
+        if (stopRequested) {
+          return;
+        }
+        modal.remove();
+        pageWindow.alert(`Sent offers for ${completed} cards.`);
+      } finally {
+        if (stopRequested && modal) {
+          modal.remove();
+        }
+        sendAllInFlight = false;
+        if (typeof onDone === "function") onDone();
+      }
+    }
+
     const provider = {
       id: "chase",
       needsManualFetch: !isAutoSendEnabled(),
+      supportsSendAll: true,
       match,
       getCardLabel() {
         const cardLabel = getSelectedCardLabel();
@@ -414,30 +615,62 @@
           });
         }
       },
-      manualFetch(pushOffers, setStatus) {
-        const requestInfo = lastRequest
-          ? {
-              url: lastRequest.url,
-              options: {
-                method: lastRequest.options?.method || "GET",
-                headers: { ...(lastRequest.options?.headers || {}) },
-                body: lastRequest.options?.body ?? null,
-                credentials: lastRequest.options?.credentials || "include",
-                mode: lastRequest.options?.mode
+      manualFetch(pushOffers, setStatus, cardInfo) {
+        return new Promise(resolve => {
+          const requestInfo = lastRequest
+            ? {
+                url: lastRequest.url,
+                options: {
+                  method: lastRequest.options?.method || "GET",
+                  headers: { ...(lastRequest.options?.headers || {}) },
+                  body: lastRequest.options?.body ?? null,
+                  credentials: lastRequest.options?.credentials || "include",
+                  mode: lastRequest.options?.mode
+                }
+              }
+            : buildFallbackRequest();
+          if (!requestInfo) {
+            if (setStatus) setStatus("Manual send failed: missing request data");
+            resolve(false);
+            return;
+          }
+          if (cardInfo?.primaryDigitalAccountIdentifier) {
+            const headers = requestInfo.options.headers || {};
+            const headerKey = Object.keys(headers).find(key => key.toLowerCase() === "path-params") || "path-params";
+            let pathParams = null;
+            const rawPathParams = headers[headerKey];
+            if (rawPathParams) {
+              try {
+                pathParams = typeof rawPathParams === "string" ? JSON.parse(rawPathParams) : rawPathParams;
+              } catch (_) {
+                pathParams = parsePathParamsFromText(String(rawPathParams));
               }
             }
-          : buildFallbackRequest();
-        if (!requestInfo) {
-          if (setStatus) setStatus("Manual send failed: missing request data");
-          return;
-        }
-        if (setStatus) setStatus("Manual send");
-        pageWindow.fetch(requestInfo.url, requestInfo.options)
-          .then(response => response.json())
-          .then(data => handlePayload(data, pushOffers, "manual"))
-          .catch(() => {
-            if (setStatus) setStatus("Manual send failed");
-          });
+            if (!pathParams) {
+              pathParams = getPathParamsFromPage();
+            }
+            if (pathParams) {
+              pathParams.digitalAccountIdentifierList = [cardInfo.primaryDigitalAccountIdentifier];
+              pathParams.primaryDigitalAccountIdentifierList = [cardInfo.primaryDigitalAccountIdentifier];
+              headers[headerKey] = JSON.stringify(pathParams);
+            }
+            requestInfo.options.headers = headers;
+          }
+          if (setStatus) setStatus("Manual send");
+          pageWindow.fetch(requestInfo.url, requestInfo.options)
+            .then(response => response.json())
+            .then(data => {
+              handlePayload(data, pushOffers, "manual", cardInfo);
+              resolve(true);
+            })
+            .catch(() => {
+              if (setStatus) setStatus("Manual send failed");
+              resolve(false);
+            });
+        });
+      },
+      sendAll(pushOffers, setStatus, onDone) {
+        sendAll(pushOffers, setStatus, onDone);
       }
     };
 

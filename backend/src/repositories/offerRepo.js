@@ -58,6 +58,7 @@ export function createOfferRepo(db) {
         .where("user_id", userId)
         .whereNotNull("card_num")
         .whereNot("card_num", "")
+        .orderBy("source")
         .orderBy("card_num");
       return rows.map(row => ({
         cardNum: row.card_num,

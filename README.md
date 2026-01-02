@@ -6,7 +6,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 [![Tampermonkey](https://img.shields.io/badge/UserScript-Tampermonkey-red)](https://www.tampermonkey.net/)
 
-**Offers Camp** is a centralized hub for your credit card merchant offers. It collects data via a browser userscript and syncs it to a web dashboard, allowing you to search, filter, and track offers across multiple banks in one place.
+**Offers Camp** is a self-hostable, privacy-first credit card offers hub. It collects data via a browser userscript and syncs it to a web dashboard, allowing you to search, filter, and track offers across multiple banks in one place.
 
 ## ✨ Features
 

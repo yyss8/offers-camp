@@ -57,7 +57,7 @@
   };
   let settings = settingsStore
     ? settingsStore.get()
-    : { autoSend: true, providers: {}, useCloud: true, localApiBase: DEFAULT_LOCAL_API };
+    : { autoSend: false, providers: {}, useCloud: true, localApiBase: DEFAULT_LOCAL_API };
   let authInitialized = false;
   const panelHandlers = {
     onSend: null,
