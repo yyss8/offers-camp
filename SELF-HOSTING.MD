@@ -1,6 +1,6 @@
 # 🏕️ Offers Camp Self-Hosting Guide
 
-[中文教程](SELF-HOSTING-ZH.MD)
+[中文教程](SELF-HOSTING-ZH.md)
 
 This document explains how to run **Offers Camp** on your own machine or VPS.
 Self‑hosting is a first‑class option and gives you full control over your data.
