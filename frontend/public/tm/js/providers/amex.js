@@ -253,45 +253,10 @@
       if (!text) return { cardNum: "", cardLabel: "" };
       const cardLabelMatch = text.match(/^(.+?)(?:\s+ending\s+in\b|\s*\(|\s*-\s*\d|$)/i);
       const cardLabel = cardLabelMatch ? cardLabelMatch[1].trim() : text;
-      if (utils.extractLastDigits) {
-        return {
-          cardNum: utils.extractLastDigits(text, 5),
-          cardLabel
-        };
-      }
-      const digits = text.replace(/\D/g, "");
       return {
-        cardNum: digits ? digits.slice(-5) : "",
+        cardNum: utils.extractLastDigits(text, 5),
         cardLabel
       };
-    }
-
-    function sleep(ms) {
-      return new Promise(resolve => pageWindow.setTimeout(resolve, ms));
-    }
-
-    function waitForElement(selector, timeoutMs) {
-      const doc = pageWindow.document;
-      if (!doc) return Promise.resolve(null);
-      const existing = doc.querySelector(selector);
-      if (existing) return Promise.resolve(existing);
-      if (!pageWindow.MutationObserver) return Promise.resolve(null);
-      return new Promise(resolve => {
-        let timeoutId;
-        const observer = new pageWindow.MutationObserver(() => {
-          const found = doc.querySelector(selector);
-          if (found) {
-            observer.disconnect();
-            if (timeoutId) pageWindow.clearTimeout(timeoutId);
-            resolve(found);
-          }
-        });
-        observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true });
-        timeoutId = pageWindow.setTimeout(() => {
-          observer.disconnect();
-          resolve(null);
-        }, timeoutMs || 10000);
-      });
     }
 
     function collectAccountOptions() {
@@ -316,49 +281,6 @@
       }).filter(item => item.accountNumberProxy);
     }
 
-    function createSendAllModal() {
-      const doc = pageWindow.document;
-      if (!doc || !doc.body) return null;
-      const overlay = doc.createElement("div");
-      overlay.className = "cc-offers-sendall";
-      const panel = doc.createElement("div");
-      panel.className = "cc-offers-sendall__panel";
-      const title = doc.createElement("div");
-      title.className = "cc-offers-sendall__title";
-      title.textContent = "Sending offers";
-      const status = doc.createElement("div");
-      status.className = "cc-offers-sendall__status";
-      status.textContent = "Preparing card list...";
-      const progress = doc.createElement("div");
-      progress.className = "cc-offers-sendall__progress";
-      const bar = doc.createElement("div");
-      bar.className = "cc-offers-sendall__progress-bar";
-      progress.appendChild(bar);
-      const stopBtn = doc.createElement("button");
-      stopBtn.type = "button";
-      stopBtn.className = "cc-offers-sendall__btn";
-      stopBtn.textContent = "Stop";
-      panel.appendChild(title);
-      panel.appendChild(status);
-      panel.appendChild(progress);
-      panel.appendChild(stopBtn);
-      overlay.appendChild(panel);
-      doc.body.appendChild(overlay);
-      return {
-        overlay,
-        stopBtn,
-        setStatus(text) {
-          status.textContent = text;
-        },
-        setProgress(value) {
-          const pct = Math.max(0, Math.min(100, value));
-          bar.style.width = `${pct}%`;
-        },
-        remove() {
-          overlay.remove();
-        }
-      };
-    }
 
     async function sendAll(pushOffers, setStatus, onDone) {
       if (sendAllInFlight) {
@@ -372,7 +294,7 @@
       sendAllInFlight = true;
       let stopRequested = false;
       let openedList = false;
-      const modal = createSendAllModal();
+      const modal = utils.createSendAllModal(pageWindow);
       if (!modal) {
         sendAllInFlight = false;
         if (typeof onDone === "function") onDone();
@@ -392,7 +314,7 @@
         if (!listGroup && combo) {
           combo.click();
           openedList = true;
-          listGroup = await waitForElement(listSelector, 10000);
+          listGroup = await utils.waitForElement(listSelector, 10000, pageWindow);
         }
 
         const options = collectAccountOptions();
@@ -414,7 +336,7 @@
           completed += 1;
           modal.setProgress((completed / total) * 100);
           if (stopRequested) break;
-          await sleep(500);
+          await utils.sleep(500, pageWindow);
         }
 
         if (stopRequested) {

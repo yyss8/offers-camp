@@ -99,19 +99,6 @@
       return "";
     }
 
-    function formatExpiry(value) {
-      if (utils.formatExpiry) {
-        return utils.formatExpiry(value);
-      }
-      if (!value) return "";
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return value;
-      const mm = String(date.getMonth() + 1).padStart(2, "0");
-      const dd = String(date.getDate()).padStart(2, "0");
-      const yy = String(date.getFullYear()).slice(-2);
-      return `${mm}/${dd}/${yy}`;
-    }
-
     function normalizeOffers(payload, cardInfo) {
       const groups = Array.isArray(payload?.customerOffers) ? payload.customerOffers : [];
       const selectedCardNum = cardInfo?.cardNum || getSelectedCardNum();
@@ -139,7 +126,9 @@
             entry.offer.offerDisplayDetails?.rewardDescriptionText ||
             entry.offer.offerDisplayDetails?.shortMessageText ||
             "",
-          expires: formatExpiry(entry.offer.offerDetails?.offerEndTimestamp || ""),
+          expires: utils.formatExpiry
+            ? utils.formatExpiry(entry.offer.offerDetails?.offerEndTimestamp || "")
+            : entry.offer.offerDetails?.offerEndTimestamp || "",
           categories: Array.isArray(entry.offer.offerCategories)
             ? entry.offer.offerCategories.map(category => category.offerCategoryName).filter(Boolean)
             : [],
@@ -159,27 +148,6 @@
           cardLabel: entry.cardLabel
         }))
         .filter(item => item.id && item.expires);
-    }
-
-    function cloneHeaders(value) {
-      if (!value) return {};
-      if (value instanceof pageWindow.Headers) {
-        const headers = {};
-        value.forEach((headerValue, key) => {
-          headers[key] = headerValue;
-        });
-        return headers;
-      }
-      if (Array.isArray(value)) {
-        return value.reduce((acc, [key, headerValue]) => {
-          acc[key] = headerValue;
-          return acc;
-        }, {});
-      }
-      if (typeof value === "object") {
-        return { ...value };
-      }
-      return {};
     }
 
     function recordRequest(url, options) {
@@ -321,8 +289,8 @@
             : args[0]?.url || "";
         const requestInit = args[1] || {};
         const headers = {
-          ...cloneHeaders(args[0]?.headers),
-          ...cloneHeaders(requestInit.headers)
+          ...(utils.cloneHeaders ? utils.cloneHeaders(args[0]?.headers) : {}),
+          ...(utils.cloneHeaders ? utils.cloneHeaders(requestInit.headers) : {})
         };
         const options = {
           method: requestInit.method || args[0]?.method || "GET",
@@ -394,34 +362,6 @@
       pageWindow.XMLHttpRequest = PatchedXHR;
     }
 
-    function sleep(ms) {
-      return new Promise(resolve => pageWindow.setTimeout(resolve, ms));
-    }
-
-    function waitForElement(selector, timeoutMs) {
-      const doc = pageWindow.document;
-      if (!doc) return Promise.resolve(null);
-      const existing = doc.querySelector(selector);
-      if (existing) return Promise.resolve(existing);
-      if (!pageWindow.MutationObserver) return Promise.resolve(null);
-      return new Promise(resolve => {
-        let timeoutId;
-        const observer = new pageWindow.MutationObserver(() => {
-          const found = doc.querySelector(selector);
-          if (found) {
-            observer.disconnect();
-            if (timeoutId) pageWindow.clearTimeout(timeoutId);
-            resolve(found);
-          }
-        });
-        observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true });
-        timeoutId = pageWindow.setTimeout(() => {
-          observer.disconnect();
-          resolve(null);
-        }, timeoutMs || 10000);
-      });
-    }
-
     function parseCardInfoFromLabel(label) {
       const text = (label || "").trim();
       if (!text) return { cardNum: "", cardLabel: "" };
@@ -476,53 +416,13 @@
           stableCount += 1;
           if (stableCount >= 2) break;
         }
-        await sleep(200);
+        if (utils.sleep) {
+          await utils.sleep(200, pageWindow);
+        } else {
+          await new Promise(resolve => pageWindow.setTimeout(resolve, 200));
+        }
       }
       return best;
-    }
-
-    function createSendAllModal() {
-      const doc = pageWindow.document;
-      if (!doc || !doc.body) return null;
-      const overlay = doc.createElement("div");
-      overlay.className = "cc-offers-sendall";
-      const panel = doc.createElement("div");
-      panel.className = "cc-offers-sendall__panel";
-      const title = doc.createElement("div");
-      title.className = "cc-offers-sendall__title";
-      title.textContent = "Sending offers";
-      const status = doc.createElement("div");
-      status.className = "cc-offers-sendall__status";
-      status.textContent = "Preparing card list...";
-      const progress = doc.createElement("div");
-      progress.className = "cc-offers-sendall__progress";
-      const bar = doc.createElement("div");
-      bar.className = "cc-offers-sendall__progress-bar";
-      progress.appendChild(bar);
-      const stopBtn = doc.createElement("button");
-      stopBtn.type = "button";
-      stopBtn.className = "cc-offers-sendall__btn";
-      stopBtn.textContent = "Stop";
-      panel.appendChild(title);
-      panel.appendChild(status);
-      panel.appendChild(progress);
-      panel.appendChild(stopBtn);
-      overlay.appendChild(panel);
-      doc.body.appendChild(overlay);
-      return {
-        overlay,
-        stopBtn,
-        setStatus(text) {
-          status.textContent = text;
-        },
-        setProgress(value) {
-          const pct = Math.max(0, Math.min(100, value));
-          bar.style.width = `${pct}%`;
-        },
-        remove() {
-          overlay.remove();
-        }
-      };
     }
 
     let sendAllInFlight = false;
@@ -538,7 +438,7 @@
       }
       sendAllInFlight = true;
       let stopRequested = false;
-      const modal = createSendAllModal();
+      const modal = utils.createSendAllModal ? utils.createSendAllModal(pageWindow) : null;
       if (!modal) {
         sendAllInFlight = false;
         if (typeof onDone === "function") onDone();
@@ -554,7 +454,9 @@
         const listSelector = ".mds-select-option--bcb";
         const listReady = pageWindow.document?.querySelector(listSelector);
         if (!listReady) {
-          await waitForElement(listSelector, 10000);
+          if (utils.waitForElement) {
+            await utils.waitForElement(listSelector, 10000, pageWindow);
+          }
         }
 
         modal.setStatus("Scanning cards...");
@@ -577,7 +479,11 @@
           completed += 1;
           modal.setProgress((completed / total) * 100);
           if (stopRequested) break;
-          await sleep(500);
+          if (utils.sleep) {
+            await utils.sleep(500, pageWindow);
+          } else {
+            await new Promise(resolve => pageWindow.setTimeout(resolve, 500));
+          }
         }
 
         if (stopRequested) {

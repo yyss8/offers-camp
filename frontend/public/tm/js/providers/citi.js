@@ -98,30 +98,6 @@
       return "";
     }
 
-    function parseChannels(value) {
-      if (utils.parseChannels) {
-        return utils.parseChannels(value);
-      }
-      if (!value) return [];
-      return String(value)
-        .split("_")
-        .map(item => item.trim())
-        .filter(Boolean);
-    }
-
-    function formatExpiry(value) {
-      if (utils.formatExpiry) {
-        return utils.formatExpiry(value);
-      }
-      if (!value) return "";
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return value;
-      const mm = String(date.getMonth() + 1).padStart(2, "0");
-      const dd = String(date.getDate()).padStart(2, "0");
-      const yy = String(date.getFullYear()).slice(-2);
-      return `${mm}/${dd}/${yy}`;
-    }
-
     function normalizeOffers(payload, cardInfo) {
       const groups = Array.isArray(payload?.merchantOffers) ? payload.merchantOffers : [];
       if (!groups.length) return [];
@@ -146,38 +122,17 @@
           id: entry.offer.offerId,
           title: entry.offer.merchantName || entry.offer.offerTitle || "Citi Offer",
           summary: entry.offer.offerTitle || entry.offer.merchantName || "",
-          expires: formatExpiry(entry.offer.offerEndDate || ""),
+          expires: utils.formatExpiry ? utils.formatExpiry(entry.offer.offerEndDate || "") : "",
           categories: entry.offer.merchantCategory ? [entry.offer.merchantCategory] : [],
           enrolled: entry.offer.offerStatus === "ENROLLED",
           sourceUrl: location.href,
           collectedAt: utils.nowIso ? utils.nowIso() : new Date().toISOString(),
           image: entry.offer.merchantImageURL || entry.offer.merchantBannerImageUrl || "",
-          channels: parseChannels(entry.offer.redemptionType),
+          channels: utils.parseChannels ? utils.parseChannels(entry.offer.redemptionType) : [],
           cardNum: entry.cardNum,
           cardLabel: entry.cardLabel
         }))
         .filter(item => item.id && item.expires);
-    }
-
-    function cloneHeaders(value) {
-      if (!value) return {};
-      if (value instanceof pageWindow.Headers) {
-        const headers = {};
-        value.forEach((headerValue, key) => {
-          headers[key] = headerValue;
-        });
-        return headers;
-      }
-      if (Array.isArray(value)) {
-        return value.reduce((acc, [key, headerValue]) => {
-          acc[key] = headerValue;
-          return acc;
-        }, {});
-      }
-      if (typeof value === "object") {
-        return { ...value };
-      }
-      return {};
     }
 
     function recordRequest(url, options) {
@@ -212,10 +167,9 @@
             ? args[0]
             : args[0]?.url || "";
         const requestInit = args[1] || {};
-        const headers = {
-          ...cloneHeaders(args[0]?.headers),
-          ...cloneHeaders(requestInit.headers)
-        };
+        const headers = utils.cloneHeaders
+          ? utils.cloneHeaders(args[0]?.headers, requestInit.headers)
+          : {};
         const options = {
           method: requestInit.method || args[0]?.method || "GET",
           headers,
@@ -286,33 +240,6 @@
       pageWindow.XMLHttpRequest = PatchedXHR;
     }
 
-    function sleep(ms) {
-      return new Promise(resolve => pageWindow.setTimeout(resolve, ms));
-    }
-
-    function waitForElement(selector, timeoutMs) {
-      const doc = pageWindow.document;
-      if (!doc) return Promise.resolve(null);
-      const existing = doc.querySelector(selector);
-      if (existing) return Promise.resolve(existing);
-      if (!pageWindow.MutationObserver) return Promise.resolve(null);
-      return new Promise(resolve => {
-        let timeoutId;
-        const observer = new pageWindow.MutationObserver(() => {
-          const found = doc.querySelector(selector);
-          if (found) {
-            observer.disconnect();
-            if (timeoutId) pageWindow.clearTimeout(timeoutId);
-            resolve(found);
-          }
-        });
-        observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true });
-        timeoutId = pageWindow.setTimeout(() => {
-          observer.disconnect();
-          resolve(null);
-        }, timeoutMs || 10000);
-      });
-    }
 
     function extractAccountIdFromOptionId(id) {
       if (!id) return "";
@@ -359,53 +286,11 @@
           stableCount += 1;
           if (stableCount >= 2) break;
         }
-        await sleep(200);
+        if (utils.sleep) {
+          await utils.sleep(200, pageWindow);
+        }
       }
       return best;
-    }
-
-    function createSendAllModal() {
-      const doc = pageWindow.document;
-      if (!doc || !doc.body) return null;
-      const overlay = doc.createElement("div");
-      overlay.className = "cc-offers-sendall";
-      const panel = doc.createElement("div");
-      panel.className = "cc-offers-sendall__panel";
-      const title = doc.createElement("div");
-      title.className = "cc-offers-sendall__title";
-      title.textContent = "Sending offers";
-      const status = doc.createElement("div");
-      status.className = "cc-offers-sendall__status";
-      status.textContent = "Preparing card list...";
-      const progress = doc.createElement("div");
-      progress.className = "cc-offers-sendall__progress";
-      const bar = doc.createElement("div");
-      bar.className = "cc-offers-sendall__progress-bar";
-      progress.appendChild(bar);
-      const stopBtn = doc.createElement("button");
-      stopBtn.type = "button";
-      stopBtn.className = "cc-offers-sendall__btn";
-      stopBtn.textContent = "Stop";
-      panel.appendChild(title);
-      panel.appendChild(status);
-      panel.appendChild(progress);
-      panel.appendChild(stopBtn);
-      overlay.appendChild(panel);
-      doc.body.appendChild(overlay);
-      return {
-        overlay,
-        stopBtn,
-        setStatus(text) {
-          status.textContent = text;
-        },
-        setProgress(value) {
-          const pct = Math.max(0, Math.min(100, value));
-          bar.style.width = `${pct}%`;
-        },
-        remove() {
-          overlay.remove();
-        }
-      };
     }
 
     let sendAllInFlight = false;
@@ -421,7 +306,7 @@
       }
       sendAllInFlight = true;
       let stopRequested = false;
-      const modal = createSendAllModal();
+      const modal = utils.createSendAllModal ? utils.createSendAllModal(pageWindow) : null;
       if (!modal) {
         sendAllInFlight = false;
         if (typeof onDone === "function") onDone();
@@ -436,7 +321,9 @@
       try {
         const listBox = pageWindow.document?.querySelector("#cds-dropdown-listbox");
         if (!listBox) {
-          await waitForElement("#cds-dropdown-listbox", 10000);
+          if (utils.waitForElement) {
+            await utils.waitForElement("#cds-dropdown-listbox", 10000, pageWindow);
+          }
         }
 
         modal.setStatus("Scanning cards...");
@@ -459,7 +346,9 @@
           completed += 1;
           modal.setProgress((completed / total) * 100);
           if (stopRequested) break;
-          await sleep(500);
+          if (utils.sleep) {
+            await utils.sleep(500, pageWindow);
+          }
         }
 
         if (stopRequested) {
