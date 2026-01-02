@@ -3,7 +3,7 @@
 [![Offers Camp logo](https://offers.camp/images/logo-sm.png)](https://offers.camp)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org/)
 [![Tampermonkey](https://img.shields.io/badge/UserScript-Tampermonkey-red)](https://www.tampermonkey.net/)
 
 [ENGLISH README](README.md)
