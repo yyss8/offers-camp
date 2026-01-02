@@ -10,15 +10,29 @@ import Pagination from "./components/Pagination";
 import TmLoginComplete from "./components/TmLoginComplete";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+const FORCE_REMOTE =
+  String(import.meta.env.VITE_FORCE_REMOTE || "").toLowerCase() === "true" ||
+  String(import.meta.env.VITE_FORCE_REMOTE || "") === "1";
 const IS_LOCAL_API =
-  API_BASE.includes("localhost") || API_BASE.includes("127.0.0.1");
+  !FORCE_REMOTE &&
+  (API_BASE.includes("localhost") || API_BASE.includes("127.0.0.1"));
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
+  const [authMode, setAuthMode] = useState("login");
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  const [registerForm, setRegisterForm] = useState({
+    username: "",
+    email: "",
+    password: ""
+  });
+  const [verifyForm, setVerifyForm] = useState({ email: "", code: "" });
   const [loggingIn, setLoggingIn] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const tokenSentRef = useRef(false);
   const [tmStatus, setTmStatus] = useState("");
   const [offers, setOffers] = useState([]);
@@ -63,6 +77,7 @@ export default function App() {
     async function loadUser() {
       setAuthLoading(true);
       setAuthError("");
+      setAuthNotice("");
       try {
         const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
         if (!res.ok) {
@@ -333,6 +348,7 @@ export default function App() {
     if (loggingIn) return;
     setLoggingIn(true);
     setAuthError("");
+    setAuthNotice("");
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
@@ -347,6 +363,15 @@ export default function App() {
         throw new Error("Invalid credentials");
       }
       const data = await res.json();
+      if (data && data.verificationRequired) {
+        setAuthMode("verify");
+        setVerifyForm({
+          email: data.email || loginForm.username.trim(),
+          code: ""
+        });
+        setAuthNotice("Verification required. Enter the 6-digit code.");
+        return;
+      }
       setUser(data.user || null);
       setLoginForm({ username: "", password: "" });
     } catch (err) {
@@ -358,6 +383,84 @@ export default function App() {
 
   function handleLoginChange(field, value) {
     setLoginForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  async function handleRegister(event) {
+    event.preventDefault();
+    if (registering) return;
+    setRegistering(true);
+    setAuthError("");
+    setAuthNotice("");
+    try {
+      const res = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          username: registerForm.username.trim(),
+          email: registerForm.email.trim(),
+          password: registerForm.password
+        })
+      });
+      if (!res.ok) {
+        throw new Error("Registration failed");
+      }
+      const data = await res.json();
+      if (data && data.verificationRequired) {
+        setAuthMode("verify");
+        setVerifyForm({
+          email: data.email || registerForm.email.trim(),
+          code: ""
+        });
+        setAuthNotice("Verification code sent. Check your email.");
+        setRegisterForm({ username: "", email: "", password: "" });
+        return;
+      }
+      setAuthError("Registration requires verification");
+    } catch (err) {
+      setAuthError("Registration failed");
+    } finally {
+      setRegistering(false);
+    }
+  }
+
+  function handleRegisterChange(field, value) {
+    setRegisterForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  async function handleVerify(event) {
+    event.preventDefault();
+    if (verifying) return;
+    setVerifying(true);
+    setAuthError("");
+    setAuthNotice("");
+    try {
+      const res = await fetch(`${API_BASE}/auth/verify-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: verifyForm.email.trim(),
+          code: verifyForm.code.trim()
+        })
+      });
+      if (!res.ok) {
+        throw new Error("Verification failed");
+      }
+      const data = await res.json();
+      setUser(data.user || null);
+      setLoginForm({ username: "", password: "" });
+      setRegisterForm({ username: "", email: "", password: "" });
+      setVerifyForm({ email: "", code: "" });
+    } catch (err) {
+      setAuthError("Verification failed");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  function handleVerifyChange(field, value) {
+    setVerifyForm(prev => ({ ...prev, [field]: value }));
   }
 
   async function handleLogout() {
@@ -421,11 +524,22 @@ export default function App() {
     return (
       <LoginView
         isLocalApi={IS_LOCAL_API}
+        authMode={authMode}
+        onModeChange={setAuthMode}
         loginForm={loginForm}
         onLoginChange={handleLoginChange}
         onSubmit={handleLogin}
+        registerForm={registerForm}
+        onRegisterChange={handleRegisterChange}
+        onRegisterSubmit={handleRegister}
+        verifyForm={verifyForm}
+        onVerifyChange={handleVerifyChange}
+        onVerifySubmit={handleVerify}
         authError={authError}
+        authNotice={authNotice}
         loggingIn={loggingIn}
+        registering={registering}
+        verifying={verifying}
       />
     );
   }
