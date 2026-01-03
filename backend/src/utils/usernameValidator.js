@@ -86,19 +86,12 @@ export function validateUsername(username) {
         };
     }
 
-    // 2. Check if in reserved list
+    // 2. Check if in reserved list (exact match only)
     if (RESERVED_USERNAMES.includes(lower)) {
         return { valid: false, reason: 'This username is reserved' };
     }
 
-    // 3. Check if contains reserved words
-    for (const reserved of RESERVED_USERNAMES) {
-        if (lower.includes(reserved)) {
-            return { valid: false, reason: 'Username contains reserved words' };
-        }
-    }
-
-    // 4. Check format rules
+    // 3. Check format rules
     if (!USERNAME_RULES.patterns.allowed.test(username)) {
         return {
             valid: false,
@@ -124,7 +117,7 @@ export function validateUsername(username) {
         return { valid: false, reason: 'Username cannot be only numbers' };
     }
 
-    // 5. Check if appears to impersonate official account
+    // 4. Check if appears to impersonate official account (exact patterns)
     const officialPatterns = [
         /^offers.*official$/i,
         /^official.*offers$/i,

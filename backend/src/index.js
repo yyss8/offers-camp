@@ -4,10 +4,14 @@ import cors from 'cors';
 import session from 'express-session';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import timeout from 'connect-timeout';
 import { getDb } from './db.js';
 import { createUserRepo } from './repositories/userRepo.js';
 import { createOfferRepo } from './repositories/offerRepo.js';
 import { validateUsername } from './utils/usernameValidator.js';
+import { validateEmail, validatePassword, validateVerificationCode } from './utils/inputValidator.js';
 import { sendVerificationEmail } from './services/emailService.js';
 
 const app = express();
@@ -19,6 +23,10 @@ const isProd = process.env.NODE_ENV === 'production';
 const sessionSecret = process.env.SESSION_SECRET || 'dev-session-secret';
 
 app.set('trust proxy', 1);
+
+// Security headers
+app.use(helmet());
+
 app.use(
   cors({
     origin(origin, callback) {
@@ -31,7 +39,18 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: '1mb' }));
+
+// Request timeout - 60 seconds for all requests
+app.use(timeout('60s'));
+
+// Increase JSON payload limit to 2MB for bulk offer uploads
+app.use(express.json({ limit: '2mb' }));
+
+// Halt on timeout
+app.use((req, res, next) => {
+  if (!req.timedout) next();
+});
+
 app.use(
   session({
     secret: sessionSecret,
@@ -49,6 +68,42 @@ app.use(
 const db = getDb();
 const userRepo = createUserRepo(db);
 const offerRepo = createOfferRepo(db);
+
+// Rate limiters
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 login attempts per IP
+  message: 'Too many login attempts, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 registrations per IP
+  message: 'Too many registration attempts, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const verifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 verification attempts per IP
+  message: 'Too many verification attempts, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Offers rate limiter - allow plugin's 500ms frequency (120 per minute)
+// but prevent sustained abuse over longer periods
+const offersLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 150, // Allow 150 requests per minute (plugin sends ~120/min)
+  message: 'Too many requests, please slow down',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false, // Count all requests
+});
 
 app.use((req, _res, next) => {
   req.db = db;
@@ -70,9 +125,6 @@ function generateVerificationCode() {
 }
 
 async function sendVerificationCode(user, code) {
-  // Log to console for development/debugging
-  console.log(`[Offers Camp] Verification code for ${user.email}: ${code}`);
-
   // Send actual email
   try {
     await sendVerificationEmail({
@@ -158,7 +210,7 @@ app.get('/auth/verify', requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
-app.post('/auth/register', async (req, res, next) => {
+app.post('/auth/register', registerLimiter, async (req, res, next) => {
   try {
     if (isLocalRequest(req)) {
       return res.status(400).json({ error: 'Registration disabled on local' });
@@ -174,6 +226,18 @@ app.post('/auth/register', async (req, res, next) => {
     const usernameValidation = validateUsername(username);
     if (!usernameValidation.valid) {
       return res.status(400).json({ error: usernameValidation.reason });
+    }
+
+    // Validate email format
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      return res.status(400).json({ error: emailValidation.reason });
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ error: passwordValidation.reason });
     }
 
     // Check if email already exists
@@ -237,13 +301,20 @@ app.post('/auth/register', async (req, res, next) => {
   }
 });
 
-app.post('/auth/login', async (req, res, next) => {
+app.post('/auth/login', loginLimiter, async (req, res, next) => {
   try {
     const username = String(req.body?.username || '').trim();
     const password = String(req.body?.password || '');
     if (!username || !password) {
       return res.status(400).json({ error: 'Missing credentials' });
     }
+
+    // Validate password format
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ error: 'Invalid credentials' });
+    }
+
     if (isLocalRequest(req) && username === '1' && password === '1') {
       req.session.user = { id: 1, username: 'local', email: 'local@localhost' };
       return res.json({ user: req.session.user });
@@ -259,19 +330,36 @@ app.post('/auth/login', async (req, res, next) => {
     if (!user.email_verified) {
       return res.status(403).json({ error: 'Email not verified. Please contact support.' });
     }
-    req.session.user = { id: user.id, username: user.username, email: user.email };
-    res.json({ user: req.session.user });
+
+    // Regenerate session to prevent session fixation
+    req.session.regenerate((err) => {
+      if (err) return next(err);
+      req.session.user = { id: user.id, username: user.username, email: user.email };
+      res.json({ user: req.session.user });
+    });
   } catch (err) {
     next(err);
   }
 });
 
-app.post('/auth/verify-code', async (req, res, next) => {
+app.post('/auth/verify-code', verifyLimiter, async (req, res, next) => {
   try {
     const email = String(req.body?.email || '').trim();
     const code = String(req.body?.code || '').trim();
     if (!email || !code) {
       return res.status(400).json({ error: 'Missing verification info' });
+    }
+
+    // Validate email format
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      return res.status(400).json({ error: emailValidation.reason });
+    }
+
+    // Validate verification code format
+    const codeValidation = validateVerificationCode(code);
+    if (!codeValidation.valid) {
+      return res.status(400).json({ error: 'Invalid verification code' });
     }
     const user = await req.userRepo.findByEmail(email);
     if (!user) {
@@ -420,7 +508,7 @@ app.get('/offers', requireAuthOrLocal, async (req, res, next) => {
   }
 });
 
-app.post('/offers', requireAuthOrLocal, async (req, res, next) => {
+app.post('/offers', offersLimiter, requireAuthOrLocal, async (req, res, next) => {
   try {
     const offers = Array.isArray(req.body?.offers) ? req.body.offers : [];
     if (!offers.length) {
