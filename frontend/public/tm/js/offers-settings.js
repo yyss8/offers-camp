@@ -175,7 +175,12 @@
               ${useCloud ? "" : `
                 <div class="cc-settings__row cc-settings__row--stack">
                   <div class="cc-settings__field">
-                    <div class="cc-settings__label">Local URL</div>
+                    <div class="cc-settings__label">
+                      Local URL
+                      <a href="https://github.com/yyss8/offers-camp/blob/master/SELF-HOSTING.MD" target="_blank" style="margin-left: 8px; font-size: 11px; color: #f59e0b; text-decoration: none; font-weight: 500;">
+                        Self-Hosting Guide →
+                      </a>
+                    </div>
                     <div class="cc-settings__input-row">
                       <input class="cc-settings__input" data-local-api value="${localDraft}" placeholder="${DEFAULT_LOCAL_API}" />
                       <button class="cc-settings__btn cc-settings__btn--ghost" data-save-local ${localSaving ? "disabled" : ""}>
