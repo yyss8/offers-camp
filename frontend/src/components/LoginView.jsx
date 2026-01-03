@@ -14,13 +14,19 @@ export default function LoginView({
   onVerifyChange,
   onVerifySubmit,
   onResendCode,
+  forgotPasswordForm,
+  onForgotPasswordChange,
+  onForgotPasswordSubmit,
+  onResetPasswordSubmit,
+  forgotPasswordStep,
   authError,
   authNotice,
   loggingIn,
   registering,
   verifying,
   resending,
-  resendCooldown
+  resendCooldown,
+  submitting
 }) {
   const mode = isLocalApi ? "login" : authMode;
   const heading =
@@ -28,13 +34,17 @@ export default function LoginView({
       ? "Create account"
       : mode === "verify"
         ? "Verify email"
-        : "Sign in";
+        : mode === "forgotPassword"
+          ? "Reset password"
+          : "Sign in";
   const subtitle =
     mode === "register"
       ? "Start collecting offers in minutes."
       : mode === "verify"
         ? "Enter the 6-digit code we sent."
-        : "Log in to access your offers dashboard.";
+        : mode === "forgotPassword"
+          ? "Enter your email to receive a reset code."
+          : "Log in to access your offers dashboard.";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
@@ -55,7 +65,80 @@ export default function LoginView({
               (Local server detected. Use username <b>1</b> and password <b>1</b>.)
             </p>
           ) : null}
-          {!isLocalApi && mode !== "verify" ? (
+
+          {!isLocalApi && mode === "forgotPassword" && (
+            <>
+              {!forgotPasswordStep && (
+                <form onSubmit={onForgotPasswordSubmit} className="mt-6 flex flex-col gap-5">
+                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+                    Email
+                    <input
+                      type="email"
+                      value={forgotPasswordForm.email}
+                      onChange={(e) => onForgotPasswordChange({ email: e.target.value })}
+                      className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                      disabled={submitting}
+                      required
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="rounded-full bg-stone-900 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {submitting ? 'Sending...' : 'Send Reset Code'}
+                  </button>
+                </form>
+              )}
+
+              {forgotPasswordStep === 2 && (
+                <form onSubmit={onResetPasswordSubmit} className="mt-6 flex flex-col gap-5">
+                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+                    Verification Code
+                    <input
+                      type="text"
+                      value={forgotPasswordForm.code}
+                      onChange={(e) => onForgotPasswordChange({ code: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                      className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-center text-2xl font-mono tracking-widest text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                      placeholder="000000"
+                      maxLength={6}
+                      disabled={submitting}
+                      required
+                    />
+                  </label>
+                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+                    New Password
+                    <input
+                      type="password"
+                      value={forgotPasswordForm.newPassword}
+                      onChange={(e) => onForgotPasswordChange({ newPassword: e.target.value })}
+                      className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                      minLength={6}
+                      disabled={submitting}
+                      required
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="rounded-full bg-stone-900 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {submitting ? 'Resetting...' : 'Reset Password'}
+                  </button>
+                </form>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onModeChange('login')}
+                className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-stone-500 hover:text-stone-900"
+              >
+                ← Back to login
+              </button>
+            </>
+          )}
+
+          {!isLocalApi && mode !== "forgotPassword" && mode !== "verify" ? (
             <div className="mt-5 inline-flex rounded-full border border-stone-200 bg-white p-1 text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
               <button
                 type="button"
@@ -190,7 +273,7 @@ export default function LoginView({
                 {resending ? "Sending..." : resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : "Resend code"}
               </button>
             </form>
-          ) : (
+          ) : mode === "login" ? (
             <form className="mt-6 flex flex-col gap-4" onSubmit={onSubmit}>
               <label className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
                 Username or email
@@ -223,10 +306,17 @@ export default function LoginView({
                 disabled={loggingIn}
                 className="rounded-full bg-stone-900 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loggingIn ? "Signing in..." : "Sign in"}
+                {loggingIn ? "Logging in..." : "Log in"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onModeChange('forgotPassword')}
+                className="mt-3 w-full text-center text-sm text-amber-600 hover:text-amber-700 hover:underline"
+              >
+                Forgot password?
               </button>
             </form>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

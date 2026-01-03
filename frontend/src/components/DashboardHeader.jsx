@@ -6,7 +6,8 @@ export default function DashboardHeader({
   sourceFilter,
   total,
   user,
-  onLogout
+  onLogout,
+  onChangePassword
 }) {
   const hasFilters =
     debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all";
@@ -44,13 +45,22 @@ export default function DashboardHeader({
         </div>
         <div className="flex items-center justify-between text-xs text-stone-300">
           <span>{user.username}</span>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="rounded-full border border-stone-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-stone-200 transition hover:border-stone-400 hover:text-white"
-          >
-            Logout
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onChangePassword}
+              className="rounded-full border border-stone-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-stone-200 transition hover:border-stone-400 hover:text-white"
+            >
+              Change Password
+            </button>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="rounded-full border border-stone-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-stone-200 transition hover:border-stone-400 hover:text-white"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     </header>

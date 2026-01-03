@@ -29,8 +29,6 @@ CREATE TABLE IF NOT EXISTS offers_camp.users (
   password_hash VARCHAR(255) NOT NULL,
   email_verified TINYINT(1) NOT NULL DEFAULT 0,
   email_verified_at DATETIME NULL,
-  email_verify_code_hash VARCHAR(64),
-  email_verify_expires_at DATETIME NULL,
   api_token_hash VARCHAR(64),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -39,3 +37,20 @@ CREATE TABLE IF NOT EXISTS offers_camp.users (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS offers_camp.verification_codes (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  code_hash VARCHAR(64) NOT NULL,
+  type ENUM('email_verification', 'password_reset') NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY verification_codes_user_id_idx (user_id),
+  KEY verification_codes_type_idx (type),
+  KEY verification_codes_expires_at_idx (expires_at),
+  FOREIGN KEY (user_id) REFERENCES offers_camp.users(id) ON DELETE CASCADE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_0900_ai_ci;
+

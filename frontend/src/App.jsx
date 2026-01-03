@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import AuthLoading from "./components/AuthLoading";
+import ChangePasswordModal from "./components/ChangePasswordModal";
 import DashboardHeader from "./components/DashboardHeader";
 import FiltersBar from "./components/FiltersBar";
 import LoginView from "./components/LoginView";
@@ -30,6 +31,8 @@ export default function App() {
     password: ""
   });
   const [verifyForm, setVerifyForm] = useState({ email: "", code: "" });
+  const [forgotPasswordForm, setForgotPasswordForm] = useState({ email: "", code: "", newPassword: "" });
+  const [forgotPasswordStep, setForgotPasswordStep] = useState(0);
   const [loggingIn, setLoggingIn] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -50,6 +53,7 @@ export default function App() {
   const [totalRows, setTotalRows] = useState(0);
   const [page, setPage] = useState(1);
   const [activeModal, setActiveModal] = useState(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const pageSize = 100;
   const now = Date.now();
   const isFiltering = query.trim() !== debouncedQuery.trim();
@@ -504,6 +508,63 @@ export default function App() {
     }
   }
 
+  async function handleForgotPassword(e) {
+    e.preventDefault();
+    setAuthError("");
+    setAuthNotice("");
+    setVerifying(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: forgotPasswordForm.email }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to send reset code");
+      }
+      setForgotPasswordStep(2);
+      setAuthNotice("Reset code sent to your email");
+    } catch (err) {
+      setAuthError(err.message || "Failed to send reset code");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function handleResetPassword(e) {
+    e.preventDefault();
+    setAuthError("");
+    setAuthNotice("");
+    setVerifying(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: forgotPasswordForm.email,
+          code: forgotPasswordForm.code,
+          newPassword: forgotPasswordForm.newPassword,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to reset password");
+      }
+      // Reset form and go back to login
+      setAuthMode("login");
+      setForgotPasswordForm({ email: "", code: "", newPassword: "" });
+      setForgotPasswordStep(0);
+      setAuthNotice("Password reset successfully. Please log in with your new password.");
+    } catch (err) {
+      setAuthError(err.message || "Failed to reset password");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   async function handleLogout() {
     try {
       await fetch(`${API_BASE}/auth/logout`, {
@@ -533,6 +594,34 @@ export default function App() {
     const data = await res.json();
     return data.token || "";
   }
+
+  const handleChangePassword = async (action, data) => {
+    if (action === 'request') {
+      const res = await fetch(`${API_BASE}/auth/request-password-change`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ currentPassword: data.currentPassword }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to request password change');
+      }
+    } else if (action === 'verify') {
+      const res = await fetch(`${API_BASE}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ newPassword: data.newPassword, code: data.code }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to change password');
+      }
+      // Auto-logout after successful password change
+      await handleLogout();
+    }
+  };
 
   useEffect(() => {
     if (!tmMode || !user || tokenSentRef.current) return;
@@ -573,15 +662,20 @@ export default function App() {
         authMode={authMode}
         onModeChange={setAuthMode}
         loginForm={loginForm}
-        onLoginChange={handleLoginChange}
+        onLoginChange={(key, value) => setLoginForm({ ...loginForm, [key]: value })}
         onSubmit={handleLogin}
         registerForm={registerForm}
-        onRegisterChange={handleRegisterChange}
+        onRegisterChange={(key, value) => setRegisterForm({ ...registerForm, [key]: value })}
         onRegisterSubmit={handleRegister}
         verifyForm={verifyForm}
-        onVerifyChange={handleVerifyChange}
+        onVerifyChange={(key, value) => setVerifyForm({ ...verifyForm, [key]: value })}
         onVerifySubmit={handleVerify}
         onResendCode={handleResendCode}
+        forgotPasswordForm={forgotPasswordForm}
+        onForgotPasswordChange={(updates) => setForgotPasswordForm({ ...forgotPasswordForm, ...updates })}
+        onForgotPasswordSubmit={handleForgotPassword}
+        onResetPasswordSubmit={handleResetPassword}
+        forgotPasswordStep={forgotPasswordStep}
         authError={authError}
         authNotice={authNotice}
         loggingIn={loggingIn}
@@ -589,6 +683,7 @@ export default function App() {
         verifying={verifying}
         resending={resending}
         resendCooldown={resendCooldown}
+        submitting={verifying}
       />
     );
   }
@@ -612,6 +707,7 @@ export default function App() {
           total={total}
           user={user}
           onLogout={handleLogout}
+          onChangePassword={() => setShowPasswordModal(true)}
         />
 
         <FiltersBar
@@ -667,6 +763,11 @@ export default function App() {
           </>
         )}
         <OfferModal modal={activeModal} onClose={() => setActiveModal(null)} />
+        <ChangePasswordModal
+          isOpen={showPasswordModal}
+          onClose={() => setShowPasswordModal(false)}
+          onSubmit={handleChangePassword}
+        />
       </div>
     </div>
   );
