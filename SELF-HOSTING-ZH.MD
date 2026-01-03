@@ -1,6 +1,6 @@
 # 🏕️ Offers Camp 自架服务器教程
 
-[ENGLISH VERSION](SELF-HOSTING.md)
+[ENGLISH VERSION](SELF-HOSTING.MD)
 
 本文档说明如何在您自己的机器或 VPS 上运行 **Offers Camp**。
 自架服务器是一个一流的选项，让您完全控制自己的数据。

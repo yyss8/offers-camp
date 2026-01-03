@@ -6,7 +6,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org/)
 [![Tampermonkey](https://img.shields.io/badge/UserScript-Tampermonkey-red)](https://www.tampermonkey.net/)
 
-[ENGLISH README](README.md)
+[ENGLISH README](README.MD)
 
 **Offers Camp** 是一个可自托管、隐私优先的信用卡Offer收集平台。它通过浏览器用户脚本收集数据并同步到网页仪表板，让您能够在一个平台搜索、筛选和跟踪多家银行的Offer信息。
 
