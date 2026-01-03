@@ -29,6 +29,10 @@ module.exports = [
       ...nPlugin.configs.recommended.rules,
       ...promisePlugin.configs.recommended.rules,
       'n/no-unsupported-features/node-builtins': 'off',
+      'no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_'
+      }],
     },
   },
   prettierConfig,

@@ -62,7 +62,7 @@ export async function sendVerificationEmail({ to, username, code, emailType = 'r
               color: #292524;
               margin: 0;
               padding: 0;
-              background: linear-gradient(to bottom right, #fef3c7, #fed7aa, #fecaca);
+              background: linear-gradient(135deg, #fffbeb 0%, #fff7ed 50%, #fff1f2 100%);
             }
             .container {
               max-width: 600px;

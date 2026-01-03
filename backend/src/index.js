@@ -76,13 +76,18 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Health check endpoint for local server detection
+app.get('/health', (req, res) => {
+  res.json({ ok: true });
+});
+
 // Mount routes
 app.use('/auth', authRoutes);
 app.use('/offers', offersRoutes);
 app.use(offersRoutes); // Mount at root level to expose /cards and /sources
 
 // Error handler
-app.use((err, _req, res) => {
+app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: 'Server error' });
 });
