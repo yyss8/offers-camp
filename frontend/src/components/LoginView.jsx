@@ -50,12 +50,35 @@ export default function LoginView({
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
       <div className="flex min-h-screen items-center justify-center px-6">
         <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white/90 p-6 shadow-lg">
-          <img
-            src="/images/logo-sm.png"
-            alt="Offers Camp"
-            className="h-7 w-auto"
-            loading="lazy"
-          />
+          <div className="flex items-start justify-between">
+            <img
+              src="/images/logo-sm.png"
+              alt="Offers Camp"
+              className="h-7 w-auto"
+              loading="lazy"
+            />
+            <a
+              href="https://tm.offers.camp"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 hover:text-amber-800"
+            >
+              <svg
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
+              Get Collector
+            </a>
+          </div>
           <h1 className="mt-3 text-2xl font-semibold text-stone-900">
             {heading}
           </h1>
@@ -308,13 +331,15 @@ export default function LoginView({
               >
                 {loggingIn ? "Logging in..." : "Log in"}
               </button>
-              <button
-                type="button"
-                onClick={() => onModeChange('forgotPassword')}
-                className="mt-3 w-full text-center text-sm text-amber-600 hover:text-amber-700 hover:underline"
-              >
-                Forgot password?
-              </button>
+              {!isLocalApi && (
+                <button
+                  type="button"
+                  onClick={() => onModeChange('forgotPassword')}
+                  className="mt-3 w-full text-center text-sm text-amber-600 hover:text-amber-700 hover:underline"
+                >
+                  Forgot password?
+                </button>
+              )}
             </form>
           ) : null}
         </div>

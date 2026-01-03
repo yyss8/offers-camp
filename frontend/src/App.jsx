@@ -47,6 +47,7 @@ export default function App() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [cardFilter, setCardFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [highlightedFilter, setHighlightedFilter] = useState("all");
   const [cardOptions, setCardOptions] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
   const [total, setTotal] = useState(0);
@@ -169,6 +170,9 @@ export default function App() {
         if (sourceFilter !== "all") {
           params.set("source", sourceFilter);
         }
+        if (highlightedFilter !== "all") {
+          params.set("highlighted", highlightedFilter);
+        }
         const res = await fetch(`${API_BASE}/offers?${params.toString()}`, {
           credentials: "include"
         });
@@ -199,7 +203,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [user, page, debouncedQuery, cardFilter, sourceFilter]);
+  }, [user, page, debouncedQuery, cardFilter, sourceFilter, highlightedFilter]);
 
   useEffect(() => {
     let active = true;
@@ -276,7 +280,7 @@ export default function App() {
     if (page !== 1) {
       setPage(1);
     }
-  }, [debouncedQuery, cardFilter, sourceFilter]);
+  }, [debouncedQuery, cardFilter, sourceFilter, highlightedFilter]);
 
   const filtered = useMemo(() => {
     const grouped = new Map();
@@ -319,11 +323,21 @@ export default function App() {
     const base = Array.from(grouped.values());
 
     return base.sort((a, b) => {
+      // First: Sort by highlighted (highlighted offers first)
+      const aHighlighted = !!a.highlighted;
+      const bHighlighted = !!b.highlighted;
+      if (aHighlighted !== bHighlighted) {
+        return bHighlighted ? 1 : -1; // highlighted first
+      }
+
+      // Second: Sort by expiry date (soonest first, nulls last)
       const leftDate = parseExpires(a.expires);
       const rightDate = parseExpires(b.expires);
       if (leftDate && rightDate) return leftDate - rightDate;
       if (leftDate) return -1;
       if (rightDate) return 1;
+
+      // Third: Sort by title alphabetically
       const left = (a.title || "").trim();
       const right = (b.title || "").trim();
       return left.localeCompare(right, undefined, { sensitivity: "base" });
@@ -623,6 +637,64 @@ export default function App() {
     }
   };
 
+  async function handleToggleHighlight(offerId, highlighted) {
+    try {
+      // Optimistically update UI
+      setOffers(prevOffers =>
+        prevOffers.map(offer =>
+          offer.id === offerId ? { ...offer, highlighted } : offer
+        )
+      );
+
+      const res = await fetch(`${API_BASE}/offers/${encodeURIComponent(offerId)}/highlight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ highlighted }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to toggle highlight');
+      }
+
+      // Reload offers to get updated sort order
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(pageSize)
+      });
+      if (debouncedQuery.trim()) {
+        params.set("q", debouncedQuery.trim());
+      }
+      if (cardFilter !== "all") {
+        params.set("card", cardFilter);
+      }
+      if (sourceFilter !== "all") {
+        params.set("source", sourceFilter);
+      }
+      if (highlightedFilter !== "all") {
+        params.set("highlighted", highlightedFilter);
+      }
+      const refreshRes = await fetch(`${API_BASE}/offers?${params.toString()}`, {
+        credentials: "include"
+      });
+      if (refreshRes.ok) {
+        const data = await refreshRes.json();
+        setOffers(Array.isArray(data.offers) ? data.offers : []);
+        setTotal(Number.isFinite(data.total) ? data.total : 0);
+        setTotalRows(Number.isFinite(data.totalRows) ? data.totalRows : 0);
+      }
+    } catch (err) {
+      console.error('Failed to toggle highlight:', err);
+      // Revert optimistic update on error
+      setOffers(prevOffers =>
+        prevOffers.map(offer =>
+          offer.id === offerId ? { ...offer, highlighted: !highlighted } : offer
+        )
+      );
+    }
+  }
+
+
   useEffect(() => {
     if (!tmMode || !user || tokenSentRef.current) return;
     if (!window.opener || window.opener.closed) return;
@@ -695,7 +767,7 @@ export default function App() {
   }
 
   const showReset =
-    debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all";
+    debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all" || highlightedFilter !== "all";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 text-stone-900">
@@ -708,6 +780,7 @@ export default function App() {
           user={user}
           onLogout={handleLogout}
           onChangePassword={() => setShowPasswordModal(true)}
+          isLocalApi={IS_LOCAL_API}
         />
 
         <FiltersBar
@@ -719,12 +792,15 @@ export default function App() {
           onSourceFilterChange={setSourceFilter}
           cardOptions={cardOptions}
           sourceOptions={sourceOptions}
+          highlightedFilter={highlightedFilter}
+          onHighlightedFilterChange={setHighlightedFilter}
           showReset={showReset}
           onReset={() => {
             setQuery("");
             setDebouncedQuery("");
             setCardFilter("all");
             setSourceFilter("all");
+            setHighlightedFilter("all");
             setPage(1);
           }}
           filteredCount={filtered.length}
@@ -754,6 +830,7 @@ export default function App() {
               formatExpiresDisplay={formatExpiresDisplay}
               isExpiringSoon={isExpiringSoon}
               onViewDetails={setActiveModal}
+              onToggleHighlight={handleToggleHighlight}
             />
             <Pagination
               page={page}

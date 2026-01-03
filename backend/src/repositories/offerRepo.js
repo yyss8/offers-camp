@@ -1,4 +1,4 @@
-function buildQuery(db, userId, { query, card, source }) {
+function buildQuery(db, userId, { query, card, source, highlighted }) {
   const base = db('offers')
     .where('user_id', userId)
     .andWhere((builder) => {
@@ -14,6 +14,11 @@ function buildQuery(db, userId, { query, card, source }) {
   }
   if (source && source !== 'all') {
     base.andWhere('source', source);
+  }
+  if (highlighted === 'true' || highlighted === true) {
+    base.andWhere('highlighted', true);
+  } else if (highlighted === 'false' || highlighted === false) {
+    base.andWhere('highlighted', false);
   }
   return base;
 }
@@ -88,9 +93,14 @@ export function createOfferRepo(db) {
     },
     async listOfferIds(userId, filters, { limit, offset }) {
       const rows = await buildQuery(db, userId, filters)
-        .select('id', db.raw('MIN(expires) as expiry_date'))
+        .select(
+          'id',
+          db.raw('MAX(highlighted) as is_highlighted'),
+          db.raw('MIN(expires) as expiry_date'),
+          db.raw('MIN(title) as sort_title')
+        )
         .groupBy('id')
-        .orderByRaw('(expiry_date IS NULL), expiry_date ASC, id')
+        .orderByRaw('is_highlighted DESC, (expiry_date IS NULL), expiry_date ASC, sort_title ASC')
         .limit(limit)
         .offset(offset);
       return rows.map((row) => row.id);
@@ -106,12 +116,13 @@ export function createOfferRepo(db) {
           'categories',
           'channels',
           'enrolled',
+          'highlighted',
           'source',
           'card_num',
           'card_label'
         )
         .whereIn('id', ids)
-        .orderByRaw('(expires IS NULL), expires ASC, id');
+        .orderByRaw('highlighted DESC, (expires IS NULL), expires ASC, title ASC');
       return rows.map((row) => ({
         ...row,
         categories: parseJson(row.categories),
@@ -156,6 +167,12 @@ export function createOfferRepo(db) {
         return;
       }
       await db('offers').where({ user_id: userId, card_num: card }).whereNotIn('id', ids).del();
+    },
+    async toggleHighlight(userId, offerId, highlighted) {
+      await db('offers')
+        .where({ user_id: userId, id: offerId })
+        .update({ highlighted: !!highlighted });
+      return !!highlighted;
     },
   };
 }

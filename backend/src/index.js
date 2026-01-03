@@ -79,8 +79,7 @@ app.use((req, _res, next) => {
 // Mount routes
 app.use('/auth', authRoutes);
 app.use('/offers', offersRoutes);
-app.use('/cards', offersRoutes); // /cards routes are in offersRoutes
-app.use('/sources', offersRoutes); // /sources routes are in offersRoutes
+app.use(offersRoutes); // Mount at root level to expose /cards and /sources
 
 // Error handler
 app.use((err, _req, res) => {

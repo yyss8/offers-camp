@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <title>Install Offers Camp Collector</title>
@@ -12,24 +13,122 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100vh;
+      min-height: 100vh;
+      padding: 20px;
     }
+
+    .container {
+      max-width: 600px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+
+    p {
+      color: #9ca3af;
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .step {
+      background: #1a1d21;
+      padding: 20px 24px;
+      border-radius: 12px;
+      border: 1px solid #2a2d31;
+    }
+
+    .step-number {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      background: #3e4245;
+      border-radius: 50%;
+      line-height: 28px;
+      margin-right: 10px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .step-title {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .step-desc {
+      color: #9ca3af;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
     a {
+      display: inline-block;
       background: #3e4245;
       color: white;
-      padding: 14px 22px;
-      border-radius: 10px;
+      padding: 12px 24px;
+      border-radius: 8px;
       text-decoration: none;
-      font-size: 16px;
+      font-size: 15px;
+      transition: background 0.2s;
     }
+
     a:hover {
       background: #555b60;
     }
+
+    a.primary {
+      background: #2563eb;
+    }
+
+    a.primary:hover {
+      background: #1d4ed8;
+    }
   </style>
 </head>
+
 <body>
-  <a href="/offers-camp.user.js">
-    Install Offers Camp Collector
-  </a>
+  <div class="container">
+    <h1>Install Offers Camp Collector</h1>
+    <p>Follow these steps to install the Tampermonkey script</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-title">
+          <span class="step-number">1</span>
+          Install Tampermonkey
+        </div>
+        <div class="step-desc">
+          First, you need to install Tampermonkey browser extension
+        </div>
+        <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">
+          Get Tampermonkey
+        </a>
+      </div>
+
+      <div class="step">
+        <div class="step-title">
+          <span class="step-number">2</span>
+          Install Script
+        </div>
+        <div class="step-desc">
+          After installing Tampermonkey, click below to install the script
+        </div>
+        <a href="/offers-camp.user.js" class="primary">
+          Install Offers Camp Collector
+        </a>
+      </div>
+    </div>
+  </div>
 </body>
+
 </html>

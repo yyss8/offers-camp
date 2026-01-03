@@ -7,6 +7,8 @@ export default function FiltersBar({
   onCardFilterChange,
   sourceFilter,
   onSourceFilterChange,
+  highlightedFilter,
+  onHighlightedFilterChange,
   cardOptions,
   sourceOptions,
   showReset,
@@ -29,7 +31,8 @@ export default function FiltersBar({
       <select
         value={cardFilter}
         onChange={event => onCardFilterChange(event.target.value)}
-        className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-80"
+        className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 pr-7 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-80"
+        style={{ backgroundPosition: 'right 0.5rem center' }}
       >
         <option value="all">All cards</option>
         {cardOptions.map(card => {
@@ -54,7 +57,8 @@ export default function FiltersBar({
       <select
         value={sourceFilter}
         onChange={event => onSourceFilterChange(event.target.value)}
-        className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-44"
+        className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 pr-7 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-44"
+        style={{ backgroundPosition: 'right 0.5rem center' }}
       >
         <option value="all">All sources</option>
         {sourceOptions.map(source => {
@@ -65,6 +69,16 @@ export default function FiltersBar({
             </option>
           );
         })}
+      </select>
+      <select
+        value={highlightedFilter}
+        onChange={event => onHighlightedFilterChange(event.target.value)}
+        className="w-full rounded-full border border-stone-300 bg-white/80 px-4 py-3 pr-7 text-sm text-stone-800 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 sm:w-44"
+        style={{ backgroundPosition: 'right 0.5rem center' }}
+      >
+        <option value="all">All offers</option>
+        <option value="true">Highlighted</option>
+        <option value="false">Not highlighted</option>
       </select>
       {showReset && (
         <button
