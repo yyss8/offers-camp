@@ -1,93 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { minify } from "terser";
-import CleanCSS from "clean-css";
-import { readFileSync, writeFileSync, readdirSync, statSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "fs";
 import { join } from "path";
-
-// Custom plugin to minify Tampermonkey files
-function minifyTampermonkeyPlugin() {
-  return {
-    name: "minify-tampermonkey",
-    async closeBundle() {
-      const distDir = "dist";
-      const tmJsDir = join(distDir, "tm", "js");
-      const tmCssDir = join(distDir, "tm", "css");
-
-      // Minify JS files
-      try {
-        const processJsDirectory = async (dir) => {
-          const items = readdirSync(dir);
-          for (const item of items) {
-            const fullPath = join(dir, item);
-            const stat = statSync(fullPath);
-
-            if (stat.isDirectory()) {
-              await processJsDirectory(fullPath);
-            } else if (item.endsWith(".js")) {
-              const code = readFileSync(fullPath, "utf-8");
-              const result = await minify(code, {
-                compress: {
-                  drop_console: false, // Keep console for debugging
-                  dead_code: true,
-                },
-                mangle: true,
-                format: {
-                  comments: /^!|@|userscript/i, // Preserve userscript metadata
-                },
-              });
-
-              if (result.code) {
-                writeFileSync(fullPath, result.code, "utf-8");
-                console.log(`✓ Minified: ${fullPath}`);
-              }
-            }
-          }
-        };
-
-        await processJsDirectory(tmJsDir);
-      } catch (err) {
-        if (err.code !== "ENOENT") {
-          console.error("Error minifying JS files:", err);
-        }
-      }
-
-      // Minify CSS files
-      try {
-        const processCssDirectory = (dir) => {
-          const items = readdirSync(dir);
-          for (const item of items) {
-            const fullPath = join(dir, item);
-            const stat = statSync(fullPath);
-
-            if (stat.isDirectory()) {
-              processCssDirectory(fullPath);
-            } else if (item.endsWith(".css")) {
-              const code = readFileSync(fullPath, "utf-8");
-              const cleanCss = new CleanCSS({
-                level: 2, // Advanced optimizations
-              });
-              const result = cleanCss.minify(code);
-
-              if (!result.errors.length) {
-                writeFileSync(fullPath, result.styles, "utf-8");
-                console.log(`✓ Minified: ${fullPath}`);
-              } else {
-                console.error(`Error minifying ${fullPath}:`, result.errors);
-              }
-            }
-          }
-        };
-
-        processCssDirectory(tmCssDir);
-      } catch (err) {
-        if (err.code !== "ENOENT") {
-          console.error("Error minifying CSS files:", err);
-        }
-      }
-    },
-  };
-}
+import { minify } from "terser";
 
 // Custom plugin to bundle Tampermonkey userscript
 function bundleTampermonkeyPlugin() {
@@ -96,30 +11,18 @@ function bundleTampermonkeyPlugin() {
     async closeBundle() {
       const distDir = "dist";
       const tmDir = join(distDir, "tm");
-      const jsDir = join(tmDir, "js");
-      const cssDir = join(tmDir, "css");
+      const sourceJsDir = join("public", "tm", "js");
+      const sourceCssDir = join("public", "tm", "css");
+      const distJsDir = join(tmDir, "js");
+      const distCssDir = join(tmDir, "css");
 
       try {
-        // Read the userscript header
-        const userscriptPath = join(tmDir, "offers-camp.user.js");
-        const userscript = readFileSync(userscriptPath, "utf-8");
-
-        // Extract header (everything between ==UserScript== markers)
-        const headerMatch = userscript.match(/(\/\/ ==UserScript==[\s\S]*?\/\/ ==\/UserScript==)/);
-        if (!headerMatch) {
-          console.error("Could not find userscript header");
-          return;
+        // Create dist/tm/js directory if it doesn't exist
+        if (!existsSync(distJsDir)) {
+          mkdirSync(distJsDir, { recursive: true });
         }
 
-        let header = headerMatch[1];
-
-        // Remove @require and @resource lines from header
-        header = header
-          .split('\n')
-          .filter(line => !line.includes('@require') && !line.includes('@resource'))
-          .join('\n');
-
-        // Read all JS files in order
+        // Read all JS files in order from source
         const jsFiles = [
           'offers-config.js',
           'offers-utils.js',
@@ -133,35 +36,120 @@ function bundleTampermonkeyPlugin() {
 
         let bundledCode = '';
         for (const file of jsFiles) {
-          const filePath = join(jsDir, file);
+          const filePath = join(sourceJsDir, file);
           const code = readFileSync(filePath, "utf-8");
           bundledCode += `\n// ===== ${file} =====\n${code}\n`;
         }
 
-        // Read CSS
-        const cssPath = join(cssDir, "offers-camp.css");
+        // Read CSS from source directory
+        const cssPath = join(sourceCssDir, "offers-camp.css");
         const css = readFileSync(cssPath, "utf-8");
 
-        // Create bundled userscript
-        const bundled = `${header}
-
-(function() {
+        // Create bundled JS file (not .user.js)
+        const bundled = `(function() {
   'use strict';
   
   // Inject CSS
-  const style = document.createElement('style');
-  style.textContent = ${JSON.stringify(css)};
-  document.head.appendChild(style);
+  if (typeof GM_addStyle === 'function') {
+    GM_addStyle(${JSON.stringify(css)});
+  }
   
   // Bundled JavaScript
   ${bundledCode}
 })();
 `;
 
-        // Write bundled file
-        const bundledPath = join(tmDir, "offers-camp-bundle.user.js");
+        // Write bundled file as regular .js
+        const bundledPath = join(distJsDir, "offers-camp-bundle.js");
         writeFileSync(bundledPath, bundled, "utf-8");
         console.log(`✓ Created bundle: ${bundledPath}`);
+
+        // Minify the bundle
+        console.log(`🔧 Minifying bundle...`);
+        const minified = await minify(bundled, {
+          compress: {
+            drop_console: false, // Keep console for debugging
+            dead_code: true,
+            pure_funcs: [],
+          },
+          mangle: true,
+          format: {
+            comments: false, // Remove comments to save space
+          },
+        });
+
+        if (minified.code) {
+          writeFileSync(bundledPath, minified.code, "utf-8");
+          const originalSize = (bundled.length / 1024).toFixed(2);
+          const minifiedSize = (minified.code.length / 1024).toFixed(2);
+          const savings = ((1 - minified.code.length / bundled.length) * 100).toFixed(1);
+          console.log(`✓ Minified: ${originalSize} KB → ${minifiedSize} KB (saved ${savings}%)`);
+        }
+
+        // Update the shell userscript in public/tm
+        const userscriptPath = join("public", "tm", "offers-camp.user.js");
+        let userscript = readFileSync(userscriptPath, "utf-8");
+
+        // Replace all @require lines with single bundle require
+        userscript = userscript.replace(
+          /(\/\/ @require\s+https:\/\/tm\.offers\.camp\/js\/.*\n)+/g,
+          '// @require      https://tm.offers.camp/js/offers-camp-bundle.js?v=0.01\n'
+        );
+
+        // Remove @resource line since CSS is now in bundle
+        userscript = userscript.replace(
+          /\/\/ @resource\s+.*\n/g,
+          ''
+        );
+
+        // Remove @grant GM_getResourceText since we don't use @resource anymore
+        userscript = userscript.replace(
+          /\/\/ @grant\s+GM_getResourceText\n/g,
+          ''
+        );
+
+        // Replace the shell body - everything is in the bundle now
+        userscript = userscript.replace(
+          /\(function \(\) \{[\s\S]*?\}\)\(\);/,
+          '// All functionality is loaded via @require above'
+        );
+
+        writeFileSync(userscriptPath, userscript, "utf-8");
+        console.log(`✓ Updated shell: ${userscriptPath}`);
+
+        // Clean up: remove source JS and CSS files from dist, keep only bundle
+        console.log(`\n🧹 Cleaning up dist directory...`);
+
+        // Remove individual JS files
+        for (const file of jsFiles) {
+          const distFilePath = join(distJsDir, file);
+          if (existsSync(distFilePath)) {
+            rmSync(distFilePath);
+            console.log(`  ✓ Removed: ${distFilePath}`);
+          }
+        }
+
+        // Remove the old entry file (not needed in bundle)
+        const oldEntryFile = join(distJsDir, "offers-camp.js");
+        if (existsSync(oldEntryFile)) {
+          rmSync(oldEntryFile);
+          console.log(`  ✓ Removed: ${oldEntryFile}`);
+        }
+
+        // Remove providers directory
+        const providersDir = join(distJsDir, "providers");
+        if (existsSync(providersDir)) {
+          rmSync(providersDir, { recursive: true });
+          console.log(`  ✓ Removed: ${providersDir}`);
+        }
+
+        // Remove CSS directory entirely
+        if (existsSync(distCssDir)) {
+          rmSync(distCssDir, { recursive: true });
+          console.log(`  ✓ Removed: ${distCssDir}`);
+        }
+
+        console.log(`✅ Cleanup complete! Dist contains only bundle and shell.\n`);
 
       } catch (err) {
         console.error("Error bundling userscript:", err);
@@ -171,7 +159,7 @@ function bundleTampermonkeyPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), minifyTampermonkeyPlugin(), bundleTampermonkeyPlugin()],
+  plugins: [react(), bundleTampermonkeyPlugin()],
   server: {
     port: 5173
   }
