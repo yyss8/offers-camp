@@ -696,15 +696,6 @@
       return;
     }
     ensureRedirectPopup();
-    if (typeof GM_registerMenuCommand === "function") {
-      GM_registerMenuCommand("Offers Camp Settings", () => {
-        if (OffersCamp.settingsUI && typeof OffersCamp.settingsUI.open === "function") {
-          OffersCamp.settingsUI.open();
-          return;
-        }
-        ensurePanel();
-      });
-    }
     const provider = OffersCamp.providers.find(p => p.match());
     if (!provider) {
       installRouteWatcher();
@@ -721,6 +712,18 @@
     } else {
       setStatus(AUTH_DISABLED_STATUS);
     }
+
+    // Register settings menu command only when on a provider page with auth initialized
+    if (typeof GM_registerMenuCommand === "function") {
+      GM_registerMenuCommand("Offers Camp Settings", () => {
+        if (OffersCamp.settingsUI && typeof OffersCamp.settingsUI.open === "function") {
+          OffersCamp.settingsUI.open();
+          return;
+        }
+        ensurePanel();
+      });
+    }
+
     if (shouldShowPanel()) {
       ensurePanel();
       updateUI();

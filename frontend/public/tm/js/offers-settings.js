@@ -77,7 +77,7 @@
       listeners.forEach(fn => fn(settings));
     },
     onChange(fn) {
-      if (typeof fn !== "function") return () => {};
+      if (typeof fn !== "function") return () => { };
       listeners.add(fn);
       return () => listeners.delete(fn);
     }
@@ -250,11 +250,13 @@
       const loginBtn = root.querySelector("[data-login]");
       if (loginBtn) {
         loginBtn.addEventListener("click", () => {
-          if (auth.isLoggedIn()) {
+          if (useCloud && auth.isLoggedIn()) {
             window.open(appBase, "_blank", "noopener");
             return;
           }
-          auth.openLogin();
+          if (useCloud) {
+            auth.openLogin();
+          }
         });
       }
       const logoutBtn = root.querySelector("[data-logout]");
@@ -370,14 +372,15 @@
 
     render();
     OffersCamp.settings.onChange(() => {
-      render();
-      if (OffersCamp.settings.get().useCloud !== false) {
+      const current = OffersCamp.settings.get();
+      if (current.useCloud !== false) {
         fetchUser(auth, apiBase, name => {
           username = name;
           render();
         });
       } else {
-        username = "";
+        // Don't clear username when switching to local mode, just re-render
+        render();
       }
     });
     if (auth.onChange) {
