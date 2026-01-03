@@ -9,6 +9,7 @@ import {
   validateVerificationCode,
 } from '../utils/inputValidator.js';
 import { sendVerificationEmail } from '../services/emailService.js';
+import { isLocalRequest } from '../utils/requestUtils.js';
 
 const router = express.Router();
 
@@ -43,11 +44,6 @@ const verifyLimiter = expressRateLimit({
 });
 
 // Helper functions
-function isLocalRequest(req) {
-  const host = req.hostname || req.get('host') || '';
-  return host === 'localhost' || host === '127.0.0.1' || host.startsWith('localhost:');
-}
-
 function generateVerificationCode() {
   return crypto.randomInt(100000, 1000000).toString();
 }
@@ -382,6 +378,7 @@ router.post('/request-password-change', async (req, res, next) => {
       to: user.email,
       username: user.username,
       code: code,
+      emailType: 'password_change',
     });
 
     res.json({ success: true, message: 'Verification code sent to your email' });
@@ -475,7 +472,12 @@ router.post('/forgot-password', verifyLimiter, async (req, res, next) => {
     const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
 
     await req.verificationCodeRepo.create(user.id, codeHash, 'password_reset', expiresAt);
-    await sendVerificationEmail({ to: user.email, username: user.username, code });
+    await sendVerificationEmail({
+      to: user.email,
+      username: user.username,
+      code,
+      emailType: 'password_change',
+    });
 
     res.json({ success: true, message: 'Reset code sent to your email' });
   } catch (err) {

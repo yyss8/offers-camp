@@ -1,5 +1,6 @@
 import express from 'express';
 import expressRateLimit from 'express-rate-limit';
+import { isLocalRequest } from '../utils/requestUtils.js';
 
 const router = express.Router();
 
@@ -15,10 +16,6 @@ const offersLimiter = expressRateLimit({
 });
 
 // Helper functions
-function isLocalRequest(req) {
-  const host = req.hostname || req.get('host') || '';
-  return host === 'localhost' || host === '127.0.0.1' || host.startsWith('localhost:');
-}
 
 function getRequestToken(req) {
   const authHeader = req.headers.authorization;
@@ -46,21 +43,26 @@ async function requireAuth(req, res, next) {
 }
 
 async function requireAuthOrLocal(req, res, next) {
-  if (isLocalRequest(req)) {
-    // First check if there's a session user (from login)
-    if (req.session?.user) {
-      req.user = req.session.user;
-      return next();
-    }
-    // Then check for Bearer token
-    const token = getRequestToken(req);
-    if (!token) {
-      // Default to user_id 1 if no session and no token
-      req.user = { id: 1 };
-      return next();
-    }
+  // First priority: Check if there's a session user (from browser login)
+  if (req.session?.user) {
+    req.user = req.session.user;
+    return next();
   }
-  return requireAuth(req, res, next);
+
+  // Second priority: Check for Bearer token (from Tampermonkey script)
+  const token = getRequestToken(req);
+  if (token) {
+    return requireAuth(req, res, next);
+  }
+
+  // Third priority: If local request without session or token, default to user_id 1
+  if (isLocalRequest(req)) {
+    req.user = { id: 1 };
+    return next();
+  }
+
+  // No authentication found
+  return res.status(401).json({ error: 'Unauthorized' });
 }
 
 // Routes

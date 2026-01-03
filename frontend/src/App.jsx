@@ -633,6 +633,7 @@ export default function App() {
         throw new Error(error.error || 'Failed to change password');
       }
       // Auto-logout after successful password change
+      setAuthNotice("Password changed successfully. Please log in with your new password.");
       await handleLogout();
     }
   };
@@ -732,7 +733,11 @@ export default function App() {
       <LoginView
         isLocalApi={IS_LOCAL_API}
         authMode={authMode}
-        onModeChange={setAuthMode}
+        onModeChange={(mode) => {
+          setAuthMode(mode);
+          setAuthError("");
+          setAuthNotice("");
+        }}
         loginForm={loginForm}
         onLoginChange={(key, value) => setLoginForm({ ...loginForm, [key]: value })}
         onSubmit={handleLogin}

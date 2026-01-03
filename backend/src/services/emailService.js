@@ -23,19 +23,32 @@ function createEmailTransporter() {
  * @param {string} options.to - Recipient email address
  * @param {string} options.username - Username of the recipient
  * @param {string} options.code - 6-digit verification code
+ * @param {string} [options.emailType='registration'] - Type of email: 'registration' or 'password_change'
  * @returns {Promise<void>}
  */
-export async function sendVerificationEmail({ to, username, code }) {
+export async function sendVerificationEmail({ to, username, code, emailType = 'registration' }) {
   const transporter = createEmailTransporter();
   const fromName = process.env.EMAIL_FROM_NAME || 'Offers Camp';
   // Use EMAIL_FROM for alias addresses (e.g., no-reply@offers.camp)
   // Fall back to EMAIL_USER if EMAIL_FROM is not set
   const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER;
 
+  const isPasswordChange = emailType === 'password_change';
+  const subject = isPasswordChange
+    ? 'Password Change Verification - Offers Camp'
+    : 'Email Verification - Offers Camp';
+  const header = isPasswordChange ? '🔐 Password Change' : '✉️ Email Verification';
+  const greeting = isPasswordChange
+    ? 'You requested to change your password. Please use the following verification code:'
+    : 'Thank you for registering with Offers Camp! Please use the following verification code to complete your email verification:';
+  const textGreeting = isPasswordChange
+    ? 'You requested to change your password.'
+    : 'Thank you for registering with Offers Camp!';
+
   const mailOptions = {
     from: `"${fromName}" <${fromEmail}>`,
     to,
-    subject: 'Email Verification - Offers Camp',
+    subject,
     html: `
       <!DOCTYPE html>
       <html>
@@ -130,10 +143,10 @@ export async function sendVerificationEmail({ to, username, code }) {
                 <img src="https://offers.camp/images/logo.png" alt="Offers Camp" />
               </div>
               <div class="header">
-                <h1>✉️ Email Verification</h1>
+                <h1>${header}</h1>
               </div>
               <p class="greeting">Hello <strong>${username}</strong>,</p>
-              <p class="greeting">Thank you for registering with Offers Camp! Please use the following verification code to complete your email verification:</p>
+              <p class="greeting">${greeting}</p>
               <div class="code-box">
                 <div class="code">${code}</div>
               </div>
@@ -152,7 +165,7 @@ export async function sendVerificationEmail({ to, username, code }) {
     `,
     text: `Hello ${username},
 
-Thank you for registering with Offers Camp!
+${textGreeting}
 
 Your verification code is: ${code}
 
