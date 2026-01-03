@@ -1,130 +1,273 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Install Offers Camp Collector</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #0f1113;
-      color: #e5e7eb;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(to bottom right, #fef3c7, #fed7aa, #fecaca);
+      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
-      padding: 20px;
+      padding: 2rem 1rem;
+      color: #292524;
     }
 
     .container {
-      max-width: 600px;
+      max-width: 640px;
+      width: 100%;
+    }
+
+    .header {
       text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .logo {
+      width: 160px;
+      height: auto;
+      margin-bottom: 1.5rem;
     }
 
     h1 {
-      font-size: 28px;
-      margin-bottom: 12px;
-      color: #fff;
+      font-size: 2rem;
+      font-weight: 700;
+      color: #78350f;
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.02em;
     }
 
-    p {
-      color: #9ca3af;
-      margin-bottom: 32px;
-      line-height: 1.6;
+    .subtitle {
+      font-size: 1rem;
+      color: #78716c;
+      font-weight: 500;
     }
 
-    .steps {
+    .step-card {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(251, 191, 36, 0.2);
+      border-radius: 16px;
+      padding: 1.75rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+      transition: all 0.2s ease;
+    }
+
+    .step-card:hover {
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+      transform: translateY(-2px);
+    }
+
+    .step-header {
       display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .step {
-      background: #1a1d21;
-      padding: 20px 24px;
-      border-radius: 12px;
-      border: 1px solid #2a2d31;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
     }
 
     .step-number {
-      display: inline-block;
-      width: 28px;
-      height: 28px;
-      background: #3e4245;
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      color: white;
       border-radius: 50%;
-      line-height: 28px;
-      margin-right: 10px;
-      font-weight: 600;
-      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.125rem;
+      flex-shrink: 0;
+      box-shadow: 0 2px 4px rgba(180, 83, 9, 0.2);
     }
 
     .step-title {
-      font-size: 16px;
-      font-weight: 500;
-      margin-bottom: 8px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #78350f;
+      letter-spacing: -0.01em;
     }
 
-    .step-desc {
-      color: #9ca3af;
-      font-size: 14px;
-      margin-bottom: 12px;
+    .step-description {
+      color: #78716c;
+      margin-bottom: 1.25rem;
+      line-height: 1.6;
+      font-size: 0.9375rem;
     }
 
-    a {
+    .btn {
       display: inline-block;
-      background: #3e4245;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
       color: white;
-      padding: 12px 24px;
-      border-radius: 8px;
+      padding: 0.75rem 1.5rem;
+      border-radius: 12px;
       text-decoration: none;
-      font-size: 15px;
-      transition: background 0.2s;
+      font-weight: 600;
+      font-size: 0.9375rem;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      box-shadow: 0 2px 4px rgba(180, 83, 9, 0.15);
+      transition: all 0.15s ease;
+      cursor: pointer;
     }
 
-    a:hover {
-      background: #555b60;
+    .btn:hover {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      box-shadow: 0 4px 6px rgba(180, 83, 9, 0.2);
+      transform: translateY(-1px);
     }
 
-    a.primary {
-      background: #2563eb;
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border-color: rgba(37, 99, 235, 0.4);
+      box-shadow: 0 2px 4px rgba(29, 78, 216, 0.15);
     }
 
-    a.primary:hover {
-      background: #1d4ed8;
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      box-shadow: 0 4px 6px rgba(29, 78, 216, 0.2);
+    }
+
+    .bank-links {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .bank-link {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(251, 191, 36, 0.2);
+      border-radius: 12px;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+
+    .bank-link:hover {
+      background: rgba(255, 255, 255, 0.95);
+      border-color: rgba(251, 191, 36, 0.4);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      transform: translateY(-2px);
+    }
+
+    .bank-logo {
+      width: 60px;
+      height: 60px;
+      object-fit: contain;
+    }
+
+    .bank-name {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #78350f;
+      text-align: center;
+    }
+
+    .visit-site {
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(251, 191, 36, 0.2);
+      text-align: center;
+    }
+
+    .visit-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #f59e0b;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: all 0.15s ease;
+    }
+
+    .visit-link:hover {
+      color: #d97706;
+      transform: translateX(2px);
+    }
+
+    @media (max-width: 640px) {
+      h1 {
+        font-size: 1.5rem;
+      }
+
+      .step-card {
+        padding: 1.25rem;
+      }
+
+      .bank-links {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      }
     }
   </style>
 </head>
 
 <body>
   <div class="container">
-    <h1>Install Offers Camp Collector</h1>
-    <p>Follow these steps to install the Tampermonkey script</p>
+    <div class="header">
+      <img src="https://offers.camp/images/logo-sm.png" alt="Offers Camp" class="logo">
+      <h1>Install Offers Camp Collector</h1>
+      <p class="subtitle">Follow these steps to install the Tampermonkey script</p>
+    </div>
 
-    <div class="steps">
-      <div class="step">
-        <div class="step-title">
-          <span class="step-number">1</span>
-          Install Tampermonkey
-        </div>
-        <div class="step-desc">
-          First, you need to install Tampermonkey browser extension
-        </div>
-        <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">
-          Get Tampermonkey
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <h2 class="step-title">Install Tampermonkey</h2>
+      </div>
+      <p class="step-description">First, you need to install Tampermonkey browser extension</p>
+      <a href="https://www.tampermonkey.net/" target="_blank" class="btn">Get Tampermonkey</a>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">2</div>
+        <h2 class="step-title">Install Script</h2>
+      </div>
+      <p class="step-description">After installing Tampermonkey, click below to install the script</p>
+      <a href="/offers-camp.user.js" class="btn btn-primary">Install Offers Camp Collector</a>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">3</div>
+        <h2 class="step-title">Start Collecting</h2>
+      </div>
+      <p class="step-description">Visit your bank's offers page to start collecting</p>
+
+      <div class="bank-links">
+        <a href="https://global.americanexpress.com/offers" target="_blank" class="bank-link">
+          <img src="https://offers.camp/images/cards/amex.png" alt="American Express" class="bank-logo">
+          <span class="bank-name">Amex Offers</span>
+        </a>
+        <a href="https://secure.chase.com/web/auth/dashboard#/dashboard/merchantOffers/offer-hub" target="_blank"
+          class="bank-link">
+          <img src="https://offers.camp/images/cards/chase.png" alt="Chase" class="bank-logo">
+          <span class="bank-name">Chase Offers</span>
+        </a>
+        <a href="https://online.citi.com/US/ag/products-offers/merchantoffers" target="_blank" class="bank-link">
+          <img src="https://offers.camp/images/cards/citi.png" alt="Citi" class="bank-logo">
+          <span class="bank-name">Citi Offers</span>
         </a>
       </div>
 
-      <div class="step">
-        <div class="step-title">
-          <span class="step-number">2</span>
-          Install Script
-        </div>
-        <div class="step-desc">
-          After installing Tampermonkey, click below to install the script
-        </div>
-        <a href="/offers-camp.user.js" class="primary">
-          Install Offers Camp Collector
+      <div class="visit-site">
+        <a href="https://offers.camp" target="_blank" class="visit-link">
+          <span>Visit Offers Camp</span>
+          <span>→</span>
         </a>
       </div>
     </div>
