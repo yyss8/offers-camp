@@ -9,7 +9,7 @@ const router = express.Router();
 const offersLimiter = expressRateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute window
   max: 150, // Allow 150 requests per minute (plugin sends ~120/min)
-  message: 'Too many requests, please slow down',
+  message: { error: 'Too many requests, please slow down' },
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: false, // Count all requests

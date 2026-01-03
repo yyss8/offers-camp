@@ -380,7 +380,14 @@ export default function App() {
         })
       });
       if (!res.ok) {
-        throw new Error("Invalid credentials");
+        let errorMsg;
+        try {
+          const data = await res.json();
+          errorMsg = data.error;
+        } catch (e) {
+          errorMsg = res.statusText;
+        }
+        throw new Error(errorMsg || "Invalid credentials");
       }
       const data = await res.json();
       setUser(data.user || null);
@@ -414,8 +421,15 @@ export default function App() {
         })
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Registration failed");
+        let errorMsg;
+        try {
+          const data = await res.json();
+          errorMsg = data.error;
+        } catch (e) {
+          // If response is not JSON (e.g. rate limit text, 500 error page)
+          errorMsg = res.statusText || `Request failed (${res.status})`;
+        }
+        throw new Error(errorMsg || "Registration failed");
       }
       const data = await res.json();
       if (data && data.verificationRequired) {
@@ -467,7 +481,14 @@ export default function App() {
         })
       });
       if (!res.ok) {
-        throw new Error("Verification failed");
+        let errorMsg;
+        try {
+          const data = await res.json();
+          errorMsg = data.error;
+        } catch (e) {
+          errorMsg = res.statusText;
+        }
+        throw new Error(errorMsg || "Verification failed");
       }
       const data = await res.json();
       setUser(data.user || null);
@@ -500,8 +521,14 @@ export default function App() {
         body: JSON.stringify({ email: verifyForm.email.trim() })
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to resend code");
+        let errorMsg;
+        try {
+          const data = await res.json();
+          errorMsg = data.error;
+        } catch (e) {
+          errorMsg = res.statusText;
+        }
+        throw new Error(errorMsg || "Failed to resend code");
       }
       setAuthNotice("Verification code sent. Check your email.");
       // Start 30-second countdown
@@ -535,8 +562,14 @@ export default function App() {
         body: JSON.stringify({ email: forgotPasswordForm.email }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to send reset code");
+        let errorMsg;
+        try {
+          const data = await res.json();
+          errorMsg = data.error;
+        } catch (e) {
+          errorMsg = res.statusText;
+        }
+        throw new Error(errorMsg || "Failed to send reset code");
       }
       setForgotPasswordStep(2);
       setAuthNotice("Reset code sent to your email");
@@ -564,8 +597,14 @@ export default function App() {
         }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to reset password");
+        let errorMsg;
+        try {
+          const data = await res.json();
+          errorMsg = data.error;
+        } catch (e) {
+          errorMsg = res.statusText;
+        }
+        throw new Error(errorMsg || "Failed to reset password");
       }
       // Reset form and go back to login
       setAuthMode("login");

@@ -22,7 +22,7 @@ const resendCooldowns = new Map();
 const loginLimiter = expressRateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 login attempts per IP
-  message: 'Too many login attempts, please try again later',
+  message: { error: 'Too many login attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -30,7 +30,7 @@ const loginLimiter = expressRateLimit({
 const registerLimiter = expressRateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5, // 5 registrations per IP
-  message: 'Too many registration attempts, please try again later',
+  message: { error: 'Too many registration attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -38,7 +38,7 @@ const registerLimiter = expressRateLimit({
 const verifyLimiter = expressRateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 15, // 15 verification attempts per IP
-  message: 'Too many verification attempts, please try again later',
+  message: { error: 'Too many verification attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
 });
