@@ -141,8 +141,8 @@
             "",
           channels: Array.isArray(entry.offer.offerDisplayDetails?.locationRestrictions)
             ? entry.offer.offerDisplayDetails.locationRestrictions
-                .map(item => item.locationName)
-                .filter(Boolean)
+              .map(item => item.locationName)
+              .filter(Boolean)
             : [],
           cardNum: entry.cardNum,
           cardLabel: entry.cardLabel
@@ -303,8 +303,8 @@
         const fetchPromise = originalFetch.apply(this, args);
         fetchPromise.then(response => {
           if (!requestUrl.includes(API_HINT)) return;
-          response.clone().json().then(data => handlePayload(data, pushOffers, "hook")).catch(() => {});
-        }).catch(() => {});
+          response.clone().json().then(data => handlePayload(data, pushOffers, "hook")).catch(() => { });
+        }).catch(() => { });
         return fetchPromise;
       };
       pageWindow.fetch.__ccOffersChaseHooked = true;
@@ -352,7 +352,7 @@
               if (!xhr.response) return;
               handlePayload(xhr.response, pushOffers, "hook");
             }
-          } catch (_) {}
+          } catch (_) { }
         });
         return xhr;
       }
@@ -383,7 +383,7 @@
     function collectAccountOptions() {
       const doc = pageWindow.document;
       if (!doc) return [];
-      const elements = Array.from(doc.querySelectorAll(".mds-select-option--bcb"));
+      const elements = Array.from(doc.querySelectorAll("#select-credit-card-account mds-select-option"));
       const seen = new Set();
       return elements
         .map(el => {
@@ -451,7 +451,7 @@
       });
 
       try {
-        const listSelector = ".mds-select-option--bcb";
+        const listSelector = "#select-credit-card-account mds-select-option";
         const listReady = pageWindow.document?.querySelector(listSelector);
         if (!listReady) {
           if (utils.waitForElement) {
@@ -525,15 +525,15 @@
         return new Promise(resolve => {
           const requestInfo = lastRequest
             ? {
-                url: lastRequest.url,
-                options: {
-                  method: lastRequest.options?.method || "GET",
-                  headers: { ...(lastRequest.options?.headers || {}) },
-                  body: lastRequest.options?.body ?? null,
-                  credentials: lastRequest.options?.credentials || "include",
-                  mode: lastRequest.options?.mode
-                }
+              url: lastRequest.url,
+              options: {
+                method: lastRequest.options?.method || "GET",
+                headers: { ...(lastRequest.options?.headers || {}) },
+                body: lastRequest.options?.body ?? null,
+                credentials: lastRequest.options?.credentials || "include",
+                mode: lastRequest.options?.mode
               }
+            }
             : buildFallbackRequest();
           if (!requestInfo) {
             if (setStatus) setStatus("Manual send failed: missing request data");

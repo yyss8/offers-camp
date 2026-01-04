@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Offers Camp Collector
 // @namespace    https://offers.camp
-// @version      0.01
+// @version      0.02
 // @description  Offers Camp unified offers collector shell
 // @downloadURL  https://tm.offers.camp/offers-camp.user.js
 // @updateURL    https://tm.offers.camp/offers-camp.user.js
@@ -11,7 +11,7 @@
 // @match        https://secure.chase.com/web/auth/dashboard*
 // @author       yyss8
 // @run-at       document-start
-// @require      https://tm.offers.camp/js/offers-camp-bundle.js?v=0.01
+// @require      https://tm.offers.camp/js/offers-camp-bundle.js?v=0.02
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
