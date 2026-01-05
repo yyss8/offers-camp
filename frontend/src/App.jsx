@@ -8,6 +8,7 @@ import LoginView from "./components/LoginView";
 import OfferModal from "./components/OfferModal";
 import OffersGrid from "./components/OffersGrid";
 import Pagination from "./components/Pagination";
+import PurgeOffersModal from "./components/PurgeOffersModal";
 import TmLoginComplete from "./components/TmLoginComplete";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
@@ -55,6 +56,9 @@ export default function App() {
   const [page, setPage] = useState(1);
   const [activeModal, setActiveModal] = useState(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showPurgeModal, setShowPurgeModal] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const [refreshCounter, setRefreshCounter] = useState(0);
   const pageSize = 100;
   const now = Date.now();
   const isFiltering = query.trim() !== debouncedQuery.trim();
@@ -203,7 +207,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [user, page, debouncedQuery, cardFilter, sourceFilter, highlightedFilter]);
+  }, [user, page, debouncedQuery, cardFilter, sourceFilter, highlightedFilter, refreshCounter]);
 
   useEffect(() => {
     let active = true;
@@ -734,6 +738,31 @@ export default function App() {
     }
   }
 
+  async function handlePurgeOffers(sources) {
+    setPurging(true);
+    try {
+      const res = await fetch(`${API_BASE}/offers/purge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ sources })
+      });
+      if (!res.ok) {
+        throw new Error('Failed to purge offers');
+      }
+      const data = await res.json();
+      setShowPurgeModal(false);
+      // Force refresh by incrementing counter (works even on page 1)
+      setRefreshCounter(prev => prev + 1);
+      alert(`Successfully deleted ${data.deleted} offers from ${sources.join(', ')}`);
+    } catch (err) {
+      console.error('Failed to purge offers:', err);
+      alert('Failed to purge offers. Please try again.');
+    } finally {
+      setPurging(false);
+    }
+  }
+
 
   useEffect(() => {
     if (!tmMode || !user || tokenSentRef.current) return;
@@ -824,6 +853,7 @@ export default function App() {
           user={user}
           onLogout={handleLogout}
           onChangePassword={() => setShowPasswordModal(true)}
+          onPurgeClick={() => setShowPurgeModal(true)}
           isLocalApi={IS_LOCAL_API}
         />
 
@@ -884,12 +914,20 @@ export default function App() {
           </>
         )}
         <OfferModal modal={activeModal} onClose={() => setActiveModal(null)} />
-        <ChangePasswordModal
-          isOpen={showPasswordModal}
-          onClose={() => setShowPasswordModal(false)}
-          onSubmit={handleChangePassword}
-        />
       </div>
+      {showPasswordModal && (
+        <ChangePasswordModal
+          apiBase={API_BASE}
+          onCancel={() => setShowPasswordModal(false)}
+        />
+      )}
+
+      {showPurgeModal && (
+        <PurgeOffersModal
+          onClose={() => setShowPurgeModal(false)}
+          onConfirm={handlePurgeOffers}
+        />
+      )}
     </div>
   );
 }

@@ -163,4 +163,32 @@ router.post('/:offerId/highlight', requireAuthOrLocal, async (req, res, next) =>
   }
 });
 
+router.post('/purge', requireAuthOrLocal, async (req, res, next) => {
+  try {
+    const { sources } = req.body;
+
+    // Validate sources array
+    if (!Array.isArray(sources) || sources.length === 0) {
+      return res.status(400).json({ error: 'Invalid sources array' });
+    }
+
+    const validSources = ['amex', 'chase', 'citi'];
+    const filteredSources = sources.filter(s => validSources.includes(s));
+
+    if (filteredSources.length === 0) {
+      return res.status(400).json({ error: 'No valid sources provided' });
+    }
+
+    // Delete offers matching sources for this user
+    const deleted = await req.db('offers')
+      .where('user_id', req.user.id)
+      .whereIn('source', filteredSources)
+      .delete();
+
+    res.json({ success: true, deleted, sources: filteredSources });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

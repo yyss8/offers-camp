@@ -8,6 +8,7 @@ export default function DashboardHeader({
   user,
   onLogout,
   onChangePassword,
+  onPurgeClick,
   isLocalApi
 }) {
   const [showAccountMenu, setShowAccountMenu] = useState(false);
@@ -56,8 +57,8 @@ export default function DashboardHeader({
               <p className="mt-2 text-[11px] text-stone-400">
                 Filtered
                 {debouncedQuery.trim() ? ` · "${debouncedQuery.trim()}"` : ""}
-                {cardFilter !== "all" ? ` · Card ${cardFilter}` : ""}
-                {sourceFilter !== "all" ? ` · ${sourceFilter}` : ""}
+                {cardFilter !== "all" ? ` · Card ${cardFilter} ` : ""}
+                {sourceFilter !== "all" ? ` · ${sourceFilter} ` : ""}
               </p>
             )}
           </div>
@@ -111,7 +112,7 @@ export default function DashboardHeader({
                       type="button"
                       onClick={() => {
                         setShowAccountMenu(false);
-                        // TODO: Implement purge offers
+                        onPurgeClick();
                       }}
                       className="w-full px-4 py-2 text-left text-xs text-stone-200 transition hover:bg-stone-700"
                     >
