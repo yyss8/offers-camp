@@ -5,12 +5,14 @@
   function createChaseProvider() {
     const pageWindow = typeof unsafeWindow !== "undefined" ? unsafeWindow : window;
     const API_HINT = "/customer-offers";
+    const ACCOUNTS_API_HINT = "/accounts/list";
     const DEFAULT_OFFERS_URL =
       "https://secure.chase.com/svc/wr/profile/secure/gateway/ccb/marketing/offer-management/digital-customer-targeted-offers/v2/customer-offers" +
       "?offer-count=&offerStatusNameList=NEW,ACTIVATED,SERVED&source-application-system-name=CHASE_WEB" +
       "&source-request-component-name=OFFERS_HUB_CAROUSELS&is-include-summary=true";
     const settingsStore = OffersCamp.settings;
     let lastRequest = null;
+    let cachedAccountsData = null;
 
     function match() {
       if (!location.host.includes("secure.chase.com")) {
@@ -299,9 +301,17 @@
           credentials: requestInit.credentials || args[0]?.credentials || "include",
           mode: requestInit.mode || args[0]?.mode
         };
+
         recordRequest(requestUrl, options);
         const fetchPromise = originalFetch.apply(this, args);
         fetchPromise.then(response => {
+          // Handle accounts list API
+          if (requestUrl.includes(ACCOUNTS_API_HINT)) {
+            response.clone().json().then(data => {
+              cachedAccountsData = data;
+            }).catch(() => { });
+          }
+          // Handle offers API
           if (!requestUrl.includes(API_HINT)) return;
           response.clone().json().then(data => handlePayload(data, pushOffers, "hook")).catch(() => { });
         }).catch(() => { });
@@ -343,6 +353,27 @@
           return originalSend.apply(xhr, args);
         };
         xhr.addEventListener("load", function () {
+          if (!requestUrl.includes(API_HINT) && !requestUrl.includes(ACCOUNTS_API_HINT)) return;
+
+          // Handle accounts list API via XHR
+          if (requestUrl.includes(ACCOUNTS_API_HINT)) {
+            try {
+              let data = null;
+              if (!xhr.responseType || xhr.responseType === "text") {
+                if (xhr.responseText) {
+                  data = JSON.parse(xhr.responseText);
+                }
+              } else if (xhr.responseType === "json") {
+                data = xhr.response;
+              }
+              if (data) {
+                cachedAccountsData = data;
+              }
+            } catch (_) { }
+            return;
+          }
+
+          // Handle offers API
           if (!requestUrl.includes(API_HINT)) return;
           try {
             if (!xhr.responseType || xhr.responseType === "text") {
@@ -381,6 +412,30 @@
     }
 
     function collectAccountOptions() {
+      // Try to use cached accounts data from API first
+      if (cachedAccountsData && Array.isArray(cachedAccountsData.accounts)) {
+        const seen = new Set();
+        const fromCache = cachedAccountsData.accounts
+          .filter(account => account.rewardsTypeId)
+          .map(account => {
+            const accountId = String(account.id || ""); // Use account.id not accountId
+            const cardNum = extractCardNum(account.mask) || "";
+            const cardLabel = (account.nickname || "").trim();
+            if (!accountId || seen.has(accountId)) return null;
+            seen.add(accountId);
+            return {
+              primaryDigitalAccountIdentifier: accountId,
+              cardNum,
+              cardLabel
+            };
+          })
+          .filter(Boolean);
+        if (fromCache.length > 0) {
+          return fromCache;
+        }
+      }
+
+      // Fallback to HTML parsing
       const doc = pageWindow.document;
       if (!doc) return [];
       const elements = Array.from(doc.querySelectorAll("#select-credit-card-account mds-select-option"));
