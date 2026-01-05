@@ -9,6 +9,7 @@ import OfferModal from "./components/OfferModal";
 import OffersGrid from "./components/OffersGrid";
 import Pagination from "./components/Pagination";
 import PurgeOffersModal from "./components/PurgeOffersModal";
+import DeleteAccountModal from "./components/DeleteAccountModal";
 import TmLoginComplete from "./components/TmLoginComplete";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
@@ -58,6 +59,8 @@ export default function App() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [purging, setPurging] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const pageSize = 100;
   const now = Date.now();
@@ -147,6 +150,32 @@ export default function App() {
     const diff = timestamp - now;
     return diff >= 0 && diff <= 15 * 24 * 60 * 60 * 1000;
   }
+
+  async function handleDeleteAccount(username) {
+    setDeleting(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/account`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete account');
+      }
+      // Account deleted successfully - logout user
+      setShowDeleteAccountModal(false);
+      setUser(null);
+      alert('Your account has been deleted successfully.');
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+      alert(err.message || 'Failed to delete account. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
 
   useEffect(() => {
     let active = true;
@@ -854,6 +883,7 @@ export default function App() {
           onLogout={handleLogout}
           onChangePassword={() => setShowPasswordModal(true)}
           onPurgeClick={() => setShowPurgeModal(true)}
+          onDeleteAccountClick={() => setShowDeleteAccountModal(true)}
           isLocalApi={IS_LOCAL_API}
         />
 
@@ -917,8 +947,11 @@ export default function App() {
       </div>
       {showPasswordModal && (
         <ChangePasswordModal
+          isOpen={showPasswordModal}
           apiBase={API_BASE}
+          onSubmit={handleChangePassword}
           onCancel={() => setShowPasswordModal(false)}
+          onClose={() => setShowPasswordModal(false)}
         />
       )}
 
@@ -926,6 +959,14 @@ export default function App() {
         <PurgeOffersModal
           onClose={() => setShowPurgeModal(false)}
           onConfirm={handlePurgeOffers}
+        />
+      )}
+
+      {showDeleteAccountModal && (
+        <DeleteAccountModal
+          username={user?.username || ""}
+          onClose={() => setShowDeleteAccountModal(false)}
+          onConfirm={handleDeleteAccount}
         />
       )}
     </div>

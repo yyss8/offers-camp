@@ -548,4 +548,45 @@ router.post('/token', (req, res, next) => {
   })();
 });
 
+router.delete('/account', async (req, res, next) => {
+  try {
+    // Verify authentication
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { username } = req.body;
+
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json({ error: 'Username required for confirmation' });
+    }
+
+    // Verify username matches (use session user directly)
+    const user = req.session.user;
+
+    // Username must match exactly (case-sensitive)
+    if (user.username !== username.trim()) {
+      return res.status(400).json({ error: 'Username does not match' });
+    }
+
+    // Cascading deletion: delete associated data first
+    // Delete user's offers
+    await req.db('offers').where('user_id', user.id).delete();
+
+    // Delete verification codes
+    await req.db('verification_codes').where('user_id', user.id).delete();
+
+    // Delete user account
+    await req.db('users').where('id', user.id).delete();
+
+    // Clear session
+    req.session.destroy(() => {
+      res.clearCookie('connect.sid');
+      res.json({ success: true, message: 'Account deleted successfully' });
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

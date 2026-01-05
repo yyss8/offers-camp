@@ -9,6 +9,7 @@ export default function DashboardHeader({
   onLogout,
   onChangePassword,
   onPurgeClick,
+  onDeleteAccountClick,
   isLocalApi
 }) {
   const [showAccountMenu, setShowAccountMenu] = useState(false);
@@ -122,7 +123,7 @@ export default function DashboardHeader({
                       type="button"
                       onClick={() => {
                         setShowAccountMenu(false);
-                        // TODO: Implement delete account
+                        onDeleteAccountClick();
                       }}
                       className="w-full px-4 py-2 text-left text-xs text-red-400 transition hover:bg-stone-700 rounded-b-lg"
                     >
