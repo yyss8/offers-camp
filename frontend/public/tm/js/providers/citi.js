@@ -7,6 +7,7 @@
     const API_HINT = "/merchantOffers/retrieve";
     const settingsStore = OffersCamp.settings;
     let lastRequest = null;
+    let cachedCardsData = null;
 
     function match() {
       return (
@@ -51,6 +52,21 @@
       const primary = cards[0];
       if (!primary) return "";
       return extractCardLabel(primary.displayProductName || "");
+    }
+
+    function extractAllCardsFromPayload(payload) {
+      const cards = Array.isArray(payload?.cardArtDetails) ? payload.cardArtDetails : [];
+      return cards
+        .map((card, index) => {
+          const label = card.displayProductName || "";
+          const accountId = card.accountId || card.cardAccountId || String(index);
+          return {
+            accountId,
+            cardNum: extractCardNum(label),
+            cardLabel: extractCardLabel(label)
+          };
+        })
+        .filter(item => item.cardNum && item.accountId);
     }
 
     function isAutoSendEnabled() {
@@ -181,8 +197,11 @@
         const fetchPromise = originalFetch.apply(this, args);
         fetchPromise.then(response => {
           if (!requestUrl.includes(API_HINT)) return;
-          response.clone().json().then(data => handlePayload(data, pushOffers, "hook")).catch(() => {});
-        }).catch(() => {});
+          response.clone().json().then(data => {
+            cachedCardsData = extractAllCardsFromPayload(data);
+            handlePayload(data, pushOffers, "hook");
+          }).catch(() => { });
+        }).catch(() => { });
         return fetchPromise;
       };
       pageWindow.fetch.__ccOffersCitiHooked = true;
@@ -225,12 +244,15 @@
           try {
             if (!xhr.responseType || xhr.responseType === "text") {
               if (!xhr.responseText) return;
-              handlePayload(JSON.parse(xhr.responseText), pushOffers, "hook");
+              const data = JSON.parse(xhr.responseText);
+              cachedCardsData = extractAllCardsFromPayload(data);
+              handlePayload(data, pushOffers, "hook");
             } else if (xhr.responseType === "json") {
               if (!xhr.response) return;
+              cachedCardsData = extractAllCardsFromPayload(xhr.response);
               handlePayload(xhr.response, pushOffers, "hook");
             }
-          } catch (_) {}
+          } catch (_) { }
         });
         return xhr;
       }
@@ -250,6 +272,12 @@
     }
 
     function collectAccountOptions() {
+      // Try to use cached cards data from API first
+      if (cachedCardsData && cachedCardsData.length > 0) {
+        return cachedCardsData;
+      }
+
+      // Fallback to HTML parsing
       const doc = pageWindow.document;
       if (!doc) return [];
       const listBox = doc.querySelector("#cds-dropdown-listbox");
@@ -409,7 +437,7 @@
                   : (rawBody && typeof rawBody === "object" ? { ...rawBody } : {});
               parsedBody.accountId = cardInfo.accountId;
               options.body = JSON.stringify(parsedBody);
-            } catch (_) {}
+            } catch (_) { }
           }
           if (setStatus) setStatus("Manual send");
           pageWindow.fetch(lastRequest.url, options)
