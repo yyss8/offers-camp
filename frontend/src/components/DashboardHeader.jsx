@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 export default function DashboardHeader({
   debouncedQuery,
@@ -10,6 +10,22 @@ export default function DashboardHeader({
   onChangePassword,
   isLocalApi
 }) {
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const menuRef = useRef(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowAccountMenu(false);
+      }
+    }
+    if (showAccountMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showAccountMenu]);
+
   const hasFilters =
     debouncedQuery.trim() || cardFilter !== "all" || sourceFilter !== "all";
 
@@ -71,13 +87,49 @@ export default function DashboardHeader({
           <span>{user.username}</span>
           <div className="flex gap-2">
             {!isLocalApi && (
-              <button
-                type="button"
-                onClick={onChangePassword}
-                className="rounded-full border border-stone-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-stone-200 transition hover:border-stone-400 hover:text-white"
-              >
-                Change Password
-              </button>
+              <div className="relative" ref={menuRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowAccountMenu(!showAccountMenu)}
+                  className="rounded-full border border-stone-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-stone-200 transition hover:border-stone-400 hover:text-white"
+                >
+                  Account Options
+                </button>
+                {showAccountMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-stone-600 bg-stone-800 shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAccountMenu(false);
+                        onChangePassword();
+                      }}
+                      className="w-full px-4 py-2 text-left text-xs text-stone-200 transition hover:bg-stone-700 rounded-t-lg"
+                    >
+                      Change Password
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAccountMenu(false);
+                        // TODO: Implement purge offers
+                      }}
+                      className="w-full px-4 py-2 text-left text-xs text-stone-200 transition hover:bg-stone-700"
+                    >
+                      Purge Offers
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAccountMenu(false);
+                        // TODO: Implement delete account
+                      }}
+                      className="w-full px-4 py-2 text-left text-xs text-red-400 transition hover:bg-stone-700 rounded-b-lg"
+                    >
+                      Delete Account
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
             <button
               type="button"
