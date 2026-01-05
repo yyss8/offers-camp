@@ -90,10 +90,14 @@ function bundleTampermonkeyPlugin() {
         const userscriptPath = join("public", "tm", "offers-camp.user.js");
         let userscript = readFileSync(userscriptPath, "utf-8");
 
-        // Replace all @require lines with single bundle require
+        // Extract current version from the userscript
+        const versionMatch = userscript.match(/\/\/ @version\s+(\S+)/);
+        const version = versionMatch ? versionMatch[1] : '0.01';
+
+        // Replace all @require lines with single bundle require using current version
         userscript = userscript.replace(
           /(\/\/ @require\s+https:\/\/tm\.offers\.camp\/js\/.*\n)+/g,
-          '// @require      https://tm.offers.camp/js/offers-camp-bundle.js?v=0.01\n'
+          `// @require      https://tm.offers.camp/js/offers-camp-bundle.js?v=${version}\n`
         );
 
         // Remove @resource line since CSS is now in bundle
