@@ -42,8 +42,24 @@ export default function FiltersBar({
           const labelSource = source
             ? source[0].toUpperCase() + source.slice(1)
             : "Card";
-          const label = cardLabel
-            ? `${cardLabel} - ${value}`
+
+          // Add source prefix for specific sources
+          let displayLabel = cardLabel;
+          if (cardLabel) {
+            if (source === "amex") {
+              displayLabel = `Amex ${cardLabel}`;
+            } else if (source === "chase") {
+              displayLabel = `Chase ${cardLabel}`;
+            } else if (source === "citi") {
+              // Only add Citi prefix if label doesn't already start with it
+              if (!cardLabel.toLowerCase().startsWith("citi")) {
+                displayLabel = `Citi ${cardLabel}`;
+              }
+            }
+          }
+
+          const label = displayLabel
+            ? `${displayLabel} - ${value}`
             : value
               ? `${labelSource} - ${value}`
               : labelSource;
