@@ -8,6 +8,7 @@
     const settingsStore = OffersCamp.settings;
     let lastRequest = null;
     let cachedCardsData = null;
+    let cachedAccountOptions = null; // persists successful card scan across sendAll calls
 
     function match() {
       return (
@@ -199,7 +200,13 @@
         fetchPromise.then(response => {
           if (!requestUrl.includes(API_HINT)) return;
           response.clone().json().then(data => {
-            cachedCardsData = extractAllCardsFromPayload(data);
+            const newCardsData = extractAllCardsFromPayload(data);
+            // Only update cachedCardsData if we got real data - don't overwrite with empty
+            // (manualFetch responses don't have cardArtDetails, would wrongly clear the cache)
+            if (newCardsData.length > 0) {
+              cachedCardsData = newCardsData;
+              cachedAccountOptions = null; // invalidate DOM cache when API data updates
+            }
             handlePayload(data, pushOffers, "hook");
           }).catch(() => { });
         }).catch(() => { });
@@ -246,11 +253,19 @@
             if (!xhr.responseType || xhr.responseType === "text") {
               if (!xhr.responseText) return;
               const data = JSON.parse(xhr.responseText);
-              cachedCardsData = extractAllCardsFromPayload(data);
+              const newCardsData = extractAllCardsFromPayload(data);
+              if (newCardsData.length > 0) {
+                cachedCardsData = newCardsData;
+                cachedAccountOptions = null;
+              }
               handlePayload(data, pushOffers, "hook");
             } else if (xhr.responseType === "json") {
               if (!xhr.response) return;
-              cachedCardsData = extractAllCardsFromPayload(xhr.response);
+              const newCardsData2 = extractAllCardsFromPayload(xhr.response);
+              if (newCardsData2.length > 0) {
+                cachedCardsData = newCardsData2;
+                cachedAccountOptions = null;
+              }
               handlePayload(xhr.response, pushOffers, "hook");
             }
           } catch (_) { }
@@ -273,24 +288,25 @@
     }
 
     function collectAccountOptions() {
-      // Try to use cached cards data from API first
+      // 1. Try API-cached card data (from cardArtDetails in response)
       if (cachedCardsData && cachedCardsData.length > 0) {
+        cachedAccountOptions = cachedCardsData;
         return cachedCardsData;
       }
 
-      // Fallback to HTML parsing
+      // 2. Fallback to HTML parsing
       // Use resilient selector: match any listbox ending with "-listbox" (handles ID changes like cds-dropdown-listbox → card-selector-cds-dropdown-listbox)
       const doc = pageWindow.document;
-      if (!doc) return [];
+      if (!doc) return cachedAccountOptions || [];
       const listBox = doc.querySelector('[id$="-listbox"][role="listbox"]');
-      if (!listBox) return [];
+      if (!listBox) return cachedAccountOptions || [];
       const options = Array.from(listBox.querySelectorAll('li[role="option"]')).filter(el => {
         if (el.classList.contains("cds-option2-disabled")) return false;
         if (el.classList.contains("cds-menu-item-disabled")) return false;
         const ariaDisabled = el.getAttribute("aria-disabled");
         return ariaDisabled !== "true";
       });
-      return options.map(el => {
+      const result = options.map(el => {
         // aria-label format changed to "Card Ending With 0 6 3 4" (digits separated by spaces)
         // Use inner text content instead: ".cds-option2-label" has "Card - 0634" format which works with extractCardNum
         const labelEl = el.querySelector(".cds-option2-label") || el.querySelector(".cds-menu-item-label");
@@ -302,6 +318,15 @@
           cardLabel: extractCardLabel(label)
         };
       }).filter(item => item.accountId);
+
+      // 3. Cache successful DOM scan result so second sendAll call can reuse it
+      //    even if Angular re-renders and temporarily clears the li elements
+      if (result.length > 0) {
+        cachedAccountOptions = result;
+      }
+
+      // 4. Fall back to previously cached options if current DOM scan failed
+      return result.length > 0 ? result : (cachedAccountOptions || []);
     }
 
     async function collectAccountOptionsWithRetry() {
