@@ -8,6 +8,7 @@
 // @match        https://global.americanexpress.com/dashboard*
 // @match        https://global.americanexpress.com/offers*
 // @match        https://online.citi.com/US/ag/*
+// @match        https://online.citi.com/US/nga/*
 // @match        https://secure.chase.com/web/auth/dashboard*
 // @author       yyss8
 // @run-at       document-start
