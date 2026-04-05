@@ -29,13 +29,14 @@
     }
 
     function getSelectedCardNum() {
-      const el = pageWindow.document?.querySelector("#cds-dropdown .cds-dd2-text-nowrap");
+      // Use a resilient selector that doesn't depend on the parent ID (changed from #cds-dropdown to #card-selector-cds-dropdown)
+      const el = pageWindow.document?.querySelector(".cds-dd2-text-nowrap");
       const label = el?.textContent || "";
       return extractCardNum(label);
     }
 
     function getSelectedCardLabel() {
-      const el = pageWindow.document?.querySelector("#cds-dropdown .cds-dd2-text-nowrap");
+      const el = pageWindow.document?.querySelector(".cds-dd2-text-nowrap");
       const label = el?.textContent || "";
       return extractCardLabel(label);
     }
@@ -278,9 +279,10 @@
       }
 
       // Fallback to HTML parsing
+      // Use resilient selector: match any listbox ending with "-listbox" (handles ID changes like cds-dropdown-listbox → card-selector-cds-dropdown-listbox)
       const doc = pageWindow.document;
       if (!doc) return [];
-      const listBox = doc.querySelector("#cds-dropdown-listbox");
+      const listBox = doc.querySelector('[id$="-listbox"][role="listbox"]');
       if (!listBox) return [];
       const options = Array.from(listBox.querySelectorAll('li[role="option"]')).filter(el => {
         if (el.classList.contains("cds-option2-disabled")) return false;
@@ -289,7 +291,10 @@
         return ariaDisabled !== "true";
       });
       return options.map(el => {
-        const label = (el.getAttribute("aria-label") || "").replace(/\u00a0/g, " ");
+        // aria-label format changed to "Card Ending With 0 6 3 4" (digits separated by spaces)
+        // Use inner text content instead: ".cds-option2-label" has "Card - 0634" format which works with extractCardNum
+        const labelEl = el.querySelector(".cds-option2-label") || el.querySelector(".cds-menu-item-label");
+        const label = (labelEl?.textContent || el.getAttribute("aria-label") || "").replace(/\u00a0/g, " ").trim();
         const accountId = extractAccountIdFromOptionId(el.getAttribute("id"));
         return {
           accountId,
@@ -347,10 +352,10 @@
       });
 
       try {
-        const listBox = pageWindow.document?.querySelector("#cds-dropdown-listbox");
+        const listBox = pageWindow.document?.querySelector('[id$="-listbox"][role="listbox"]');
         if (!listBox) {
           if (utils.waitForElement) {
-            await utils.waitForElement("#cds-dropdown-listbox", 10000, pageWindow);
+            await utils.waitForElement('[id$="-listbox"][role="listbox"]', 10000, pageWindow);
           }
         }
 
