@@ -31,8 +31,8 @@
     {
       id: "citi",
       origin: "https://online.citi.com",
-      path: "/US/ag/dashboard/summary",
-      offersUrl: "https://online.citi.com/US/ag/products-offers/merchantoffers"
+      pathSuffix: "/dashboard/summary",
+      offersUrl: "https://online.citi.com/US/nga/products-offers/merchantoffers"
     }
   ];
 
@@ -259,7 +259,12 @@
     const { origin, pathname, hash } = window.location;
     return REDIRECT_ROUTES.find(route => {
       if (route.origin !== origin) return false;
-      if (route.path !== pathname) return false;
+      // Support both exact path match and suffix match (resilient to prefix changes like /ag/ → /nga/)
+      if (route.pathSuffix) {
+        if (!pathname.endsWith(route.pathSuffix)) return false;
+      } else if (route.path !== pathname) {
+        return false;
+      }
       if (route.hashPrefix && !hash.startsWith(route.hashPrefix)) return false;
       return true;
     });
